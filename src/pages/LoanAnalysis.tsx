@@ -8,6 +8,12 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { PolicySection } from '@/components/analysis/PolicySection';
 import { RiskSummary } from '@/components/analysis/RiskSummary';
 import { BureauSummary } from '@/components/bureau/BureauSummary';
+import { BureauLoans } from '@/components/bureau/BureauLoans';
+import { BureauEnquiries } from '@/components/bureau/BureauEnquiries';
+import { BureauRelationships } from '@/components/bureau/BureauRelationships';
+import { PaymentDelays } from '@/components/bureau/PaymentDelays';
+import { BureauBounceAnalysis } from '@/components/bureau/BureauBounceAnalysis';
+import { BureauCashFlow } from '@/components/bureau/BureauCashFlow';
 import {
   mockLoans,
   bureauCompanyPolicies,
@@ -23,6 +29,16 @@ import {
   mockCommercialBureauSummary,
   mockIndividualBureauSummary,
   mockAIBureauInsights,
+  mockCommercialLoans,
+  mockIndividualLoans,
+  mockCommercialLoanSummary,
+  mockIndividualLoanSummary,
+  mockBureauEnquiries,
+  mockEnquiryMetrics,
+  mockBureauRelationships,
+  mockPaymentDelays,
+  mockBureauBounceAnalysis,
+  mockEMIBounceAnalysis,
 } from '@/lib/bureauMockData';
 import { motion } from 'framer-motion';
 import {
@@ -39,6 +55,12 @@ import {
   FileText,
   Shield,
   AlertTriangle,
+  CreditCard,
+  Search,
+  Users,
+  Clock,
+  TrendingDown,
+  Activity,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -61,13 +83,13 @@ const preApprovalSubTabs = [
 ];
 
 const bureauSubTabs = [
-  { id: 'summary', label: 'Summary' },
-  { id: 'loans', label: 'Loans' },
-  { id: 'enquiries', label: 'Enquiries' },
-  { id: 'relationships', label: 'Relationships' },
-  { id: 'payment-delays', label: 'Payment Delays' },
-  { id: 'bounce-analysis', label: 'Bounce Analysis' },
-  { id: 'cash-flow', label: 'Cash Flow Analysis' },
+  { id: 'summary', label: 'Summary', icon: FileBarChart },
+  { id: 'loans', label: 'Loans', icon: CreditCard },
+  { id: 'enquiries', label: 'Enquiries', icon: Search },
+  { id: 'relationships', label: 'Relationships', icon: Users },
+  { id: 'payment-delays', label: 'Payment Delays', icon: Clock },
+  { id: 'bounce-analysis', label: 'Bounce Analysis', icon: TrendingDown },
+  { id: 'cash-flow', label: 'Cash Flow', icon: Activity },
 ];
 
 export default function LoanAnalysis() {
@@ -75,6 +97,7 @@ export default function LoanAnalysis() {
   const navigate = useNavigate();
   const [activeMainTab, setActiveMainTab] = useState('pre-approval');
   const [activeSubTab, setActiveSubTab] = useState('bureau-analysis');
+  const [activeBureauSubTab, setActiveBureauSubTab] = useState('summary');
 
   // Find loan by ID (fallback to first loan)
   const loan = mockLoans.find((l) => l.id === id) || mockLoans[0];
@@ -233,8 +256,82 @@ export default function LoanAnalysis() {
             </motion.div>
           </TabsContent>
 
+          {/* Bureau Tab Content */}
+          <TabsContent value="bureau" className="space-y-6">
+            {/* Bureau Sub Tabs */}
+            <Card className="border-border bg-card shadow-card">
+              <CardContent className="p-2">
+                <div className="flex flex-wrap gap-2">
+                  {bureauSubTabs.map((tab) => (
+                    <Button
+                      key={tab.id}
+                      variant={activeBureauSubTab === tab.id ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setActiveBureauSubTab(tab.id)}
+                      className={activeBureauSubTab === tab.id ? 'gradient-accent text-accent-foreground' : ''}
+                    >
+                      <tab.icon className="mr-1.5 h-4 w-4" />
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bureau Sub Tab Content */}
+            <motion.div
+              key={activeBureauSubTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeBureauSubTab === 'summary' && (
+                <BureauSummary
+                  commercial={mockCommercialBureauSummary}
+                  individual={mockIndividualBureauSummary}
+                  aiInsights={mockAIBureauInsights}
+                />
+              )}
+
+              {activeBureauSubTab === 'loans' && (
+                <BureauLoans
+                  commercialLoans={mockCommercialLoans}
+                  individualLoans={mockIndividualLoans}
+                  commercialSummary={mockCommercialLoanSummary}
+                  individualSummary={mockIndividualLoanSummary}
+                />
+              )}
+
+              {activeBureauSubTab === 'enquiries' && (
+                <BureauEnquiries
+                  enquiries={mockBureauEnquiries}
+                  metrics={mockEnquiryMetrics}
+                />
+              )}
+
+              {activeBureauSubTab === 'relationships' && (
+                <BureauRelationships relationships={mockBureauRelationships} />
+              )}
+
+              {activeBureauSubTab === 'payment-delays' && (
+                <PaymentDelays delays={mockPaymentDelays} />
+              )}
+
+              {activeBureauSubTab === 'bounce-analysis' && (
+                <BureauBounceAnalysis
+                  chequeBounce={mockBureauBounceAnalysis}
+                  emiBounce={mockEMIBounceAnalysis}
+                />
+              )}
+
+              {activeBureauSubTab === 'cash-flow' && (
+                <BureauCashFlow />
+              )}
+            </motion.div>
+          </TabsContent>
+
           {/* Other Tabs - Placeholder */}
-          {['bureau', 'gst', 'banking', 'fraud', 'personal', 'cam'].map((tabId) => (
+          {['gst', 'banking', 'fraud', 'personal', 'cam'].map((tabId) => (
             <TabsContent key={tabId} value={tabId}>
               <Card className="border-border bg-card shadow-card">
                 <CardHeader>
