@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { PolicySection } from '@/components/analysis/PolicySection';
 import { RiskSummary } from '@/components/analysis/RiskSummary';
+import { BureauSummary } from '@/components/bureau/BureauSummary';
 import {
   mockLoans,
   bureauCompanyPolicies,
@@ -18,6 +19,11 @@ import {
   crossDocPolicies,
   mockRiskAssessment,
 } from '@/lib/mockData';
+import {
+  mockCommercialBureauSummary,
+  mockIndividualBureauSummary,
+  mockAIBureauInsights,
+} from '@/lib/bureauMockData';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -28,11 +34,11 @@ import {
   FileBarChart,
   Landmark,
   Receipt,
-  GitCompare,
   Sparkles,
   MessageSquare,
   FileText,
   Shield,
+  AlertTriangle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -41,7 +47,7 @@ const mainTabs = [
   { id: 'bureau', label: 'Bureau', icon: FileBarChart },
   { id: 'gst', label: 'GST', icon: Receipt },
   { id: 'banking', label: 'Banking', icon: Landmark },
-  { id: 'fraud', label: 'Fraud Assessment', icon: Shield },
+  { id: 'fraud', label: 'Fraud Assessment', icon: AlertTriangle },
   { id: 'personal', label: 'Personal Discussion', icon: MessageSquare },
   { id: 'cam', label: 'Credit Assessment Memo', icon: FileText },
 ];
@@ -52,6 +58,16 @@ const preApprovalSubTabs = [
   { id: 'gst-analysis', label: 'GST Analysis' },
   { id: 'cross-doc', label: 'Cross Document Analysis' },
   { id: 'ai-summary', label: 'AI Summary' },
+];
+
+const bureauSubTabs = [
+  { id: 'summary', label: 'Summary' },
+  { id: 'loans', label: 'Loans' },
+  { id: 'enquiries', label: 'Enquiries' },
+  { id: 'relationships', label: 'Relationships' },
+  { id: 'payment-delays', label: 'Payment Delays' },
+  { id: 'bounce-analysis', label: 'Bounce Analysis' },
+  { id: 'cash-flow', label: 'Cash Flow Analysis' },
 ];
 
 export default function LoanAnalysis() {
