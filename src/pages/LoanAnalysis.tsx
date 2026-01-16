@@ -14,6 +14,10 @@ import { BureauRelationships } from '@/components/bureau/BureauRelationships';
 import { PaymentDelays } from '@/components/bureau/PaymentDelays';
 import { BureauBounceAnalysis } from '@/components/bureau/BureauBounceAnalysis';
 import { BureauCashFlow } from '@/components/bureau/BureauCashFlow';
+import { GSTEntityOverview } from '@/components/gst/GSTEntityOverview';
+import { GSTRevenueITC } from '@/components/gst/GSTRevenueITC';
+import { GSTFilingDelays } from '@/components/gst/GSTFilingDelays';
+import { GSTParties } from '@/components/gst/GSTParties';
 import {
   mockLoans,
   bureauCompanyPolicies,
@@ -25,6 +29,18 @@ import {
   crossDocPolicies,
   mockRiskAssessment,
 } from '@/lib/mockData';
+import {
+  mockGSTEntityDetails,
+  mockGSTAISummary,
+  mockRevenueComparison,
+  mockITCComparison,
+  mockAnnualGrossAnalysis,
+  mockAnnualNetAnalysis,
+  mockFilingDelays,
+  mockTopSuppliers,
+  mockTopCustomers,
+  mockCommonParties,
+} from '@/lib/gstMockData';
 import {
   mockCommercialBureauSummary,
   mockIndividualBureauSummary,
@@ -92,12 +108,20 @@ const bureauSubTabs = [
   { id: 'cash-flow', label: 'Cash Flow', icon: Activity },
 ];
 
+const gstSubTabs = [
+  { id: 'overview', label: 'Entity Overview', icon: Building2 },
+  { id: 'revenue-itc', label: 'Revenue & ITC', icon: Receipt },
+  { id: 'filing-delays', label: 'Filing Delays', icon: Clock },
+  { id: 'parties', label: 'Suppliers & Customers', icon: Users },
+];
+
 export default function LoanAnalysis() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeMainTab, setActiveMainTab] = useState('pre-approval');
   const [activeSubTab, setActiveSubTab] = useState('bureau-analysis');
   const [activeBureauSubTab, setActiveBureauSubTab] = useState('summary');
+  const [activeGSTSubTab, setActiveGSTSubTab] = useState('overview');
 
   // Find loan by ID (fallback to first loan)
   const loan = mockLoans.find((l) => l.id === id) || mockLoans[0];
@@ -330,8 +354,67 @@ export default function LoanAnalysis() {
             </motion.div>
           </TabsContent>
 
+          {/* GST Tab Content */}
+          <TabsContent value="gst" className="space-y-6">
+            {/* GST Sub Tabs */}
+            <Card className="border-border bg-card shadow-card">
+              <CardContent className="p-2">
+                <div className="flex flex-wrap gap-2">
+                  {gstSubTabs.map((tab) => (
+                    <Button
+                      key={tab.id}
+                      variant={activeGSTSubTab === tab.id ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setActiveGSTSubTab(tab.id)}
+                      className={activeGSTSubTab === tab.id ? 'gradient-accent text-accent-foreground' : ''}
+                    >
+                      <tab.icon className="mr-1.5 h-4 w-4" />
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* GST Sub Tab Content */}
+            <motion.div
+              key={activeGSTSubTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeGSTSubTab === 'overview' && (
+                <GSTEntityOverview
+                  entityDetails={mockGSTEntityDetails}
+                  aiSummary={mockGSTAISummary}
+                />
+              )}
+
+              {activeGSTSubTab === 'revenue-itc' && (
+                <GSTRevenueITC
+                  revenueComparison={mockRevenueComparison}
+                  itcComparison={mockITCComparison}
+                  grossAnalysis={mockAnnualGrossAnalysis}
+                  netAnalysis={mockAnnualNetAnalysis}
+                />
+              )}
+
+              {activeGSTSubTab === 'filing-delays' && (
+                <GSTFilingDelays filingDelays={mockFilingDelays} />
+              )}
+
+              {activeGSTSubTab === 'parties' && (
+                <GSTParties
+                  topSuppliers={mockTopSuppliers}
+                  topCustomers={mockTopCustomers}
+                  commonParties={mockCommonParties}
+                />
+              )}
+            </motion.div>
+          </TabsContent>
+
           {/* Other Tabs - Placeholder */}
-          {['gst', 'banking', 'fraud', 'personal', 'cam'].map((tabId) => (
+          {['banking', 'fraud', 'personal', 'cam'].map((tabId) => (
             <TabsContent key={tabId} value={tabId}>
               <Card className="border-border bg-card shadow-card">
                 <CardHeader>
