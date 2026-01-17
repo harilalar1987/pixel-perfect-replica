@@ -18,6 +18,10 @@ import { GSTEntityOverview } from '@/components/gst/GSTEntityOverview';
 import { GSTRevenueITC } from '@/components/gst/GSTRevenueITC';
 import { GSTFilingDelays } from '@/components/gst/GSTFilingDelays';
 import { GSTParties } from '@/components/gst/GSTParties';
+import { BankingAccountOverview } from '@/components/banking/BankingAccountOverview';
+import { BankingCashFlow } from '@/components/banking/BankingCashFlow';
+import { BankingBalances } from '@/components/banking/BankingBalances';
+import { BankingBounceAnalysis } from '@/components/banking/BankingBounceAnalysis';
 import {
   mockLoans,
   bureauCompanyPolicies,
@@ -41,6 +45,20 @@ import {
   mockTopCustomers,
   mockCommonParties,
 } from '@/lib/gstMockData';
+import {
+  mockBankAccounts,
+  mockTransactionSummary,
+  mockBankingConductAnalysis,
+  mockCashFlowPatterns,
+  mockBalanceBehavior,
+  mockBankingRedFlags,
+  mockAIBankingAssessment,
+  mockOutwardChequeBounce,
+  mockInwardChequeBounce,
+  mockBankingEMIBounce,
+  mockCashVsNonCash,
+  mockMonthlyBalances,
+} from '@/lib/bankingMockData';
 import {
   mockCommercialBureauSummary,
   mockIndividualBureauSummary,
@@ -77,6 +95,7 @@ import {
   Clock,
   TrendingDown,
   Activity,
+  Wallet,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -115,6 +134,13 @@ const gstSubTabs = [
   { id: 'parties', label: 'Suppliers & Customers', icon: Users },
 ];
 
+const bankingSubTabs = [
+  { id: 'overview', label: 'Account Overview', icon: Building2 },
+  { id: 'cash-flow', label: 'Cash Flow', icon: Activity },
+  { id: 'balances', label: 'Balance Analysis', icon: Wallet },
+  { id: 'bounce', label: 'Bounce Analysis', icon: TrendingDown },
+];
+
 export default function LoanAnalysis() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -122,6 +148,7 @@ export default function LoanAnalysis() {
   const [activeSubTab, setActiveSubTab] = useState('bureau-analysis');
   const [activeBureauSubTab, setActiveBureauSubTab] = useState('summary');
   const [activeGSTSubTab, setActiveGSTSubTab] = useState('overview');
+  const [activeBankingSubTab, setActiveBankingSubTab] = useState('overview');
 
   // Find loan by ID (fallback to first loan)
   const loan = mockLoans.find((l) => l.id === id) || mockLoans[0];
@@ -413,8 +440,71 @@ export default function LoanAnalysis() {
             </motion.div>
           </TabsContent>
 
+          {/* Banking Tab Content */}
+          <TabsContent value="banking" className="space-y-6">
+            {/* Banking Sub Tabs */}
+            <Card className="border-border bg-card shadow-card">
+              <CardContent className="p-2">
+                <div className="flex flex-wrap gap-2">
+                  {bankingSubTabs.map((tab) => (
+                    <Button
+                      key={tab.id}
+                      variant={activeBankingSubTab === tab.id ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setActiveBankingSubTab(tab.id)}
+                      className={activeBankingSubTab === tab.id ? 'gradient-accent text-accent-foreground' : ''}
+                    >
+                      <tab.icon className="mr-1.5 h-4 w-4" />
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Banking Sub Tab Content */}
+            <motion.div
+              key={activeBankingSubTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeBankingSubTab === 'overview' && (
+                <BankingAccountOverview
+                  accounts={mockBankAccounts}
+                  transactionSummary={mockTransactionSummary}
+                  conductAnalysis={mockBankingConductAnalysis}
+                  redFlags={mockBankingRedFlags}
+                  aiAssessment={mockAIBankingAssessment}
+                />
+              )}
+
+              {activeBankingSubTab === 'cash-flow' && (
+                <BankingCashFlow
+                  cashFlowPatterns={mockCashFlowPatterns}
+                  cashVsNonCash={mockCashVsNonCash}
+                />
+              )}
+
+              {activeBankingSubTab === 'balances' && (
+                <BankingBalances
+                  monthlyBalances={mockMonthlyBalances}
+                  balanceBehavior={mockBalanceBehavior}
+                />
+              )}
+
+              {activeBankingSubTab === 'bounce' && (
+                <BankingBounceAnalysis
+                  outwardBounce={mockOutwardChequeBounce}
+                  inwardBounce={mockInwardChequeBounce}
+                  emiBounce={mockBankingEMIBounce}
+                />
+              )}
+            </motion.div>
+          </TabsContent>
+
           {/* Other Tabs - Placeholder */}
-          {['banking', 'fraud', 'personal', 'cam'].map((tabId) => (
+          {['fraud', 'personal', 'cam'].map((tabId) => (
             <TabsContent key={tabId} value={tabId}>
               <Card className="border-border bg-card shadow-card">
                 <CardHeader>
