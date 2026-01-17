@@ -22,6 +22,9 @@ import { BankingAccountOverview } from '@/components/banking/BankingAccountOverv
 import { BankingCashFlow } from '@/components/banking/BankingCashFlow';
 import { BankingBalances } from '@/components/banking/BankingBalances';
 import { BankingBounceAnalysis } from '@/components/banking/BankingBounceAnalysis';
+import { LumpsumPatterns } from '@/components/fraud/LumpsumPatterns';
+import { RecurringPatterns } from '@/components/fraud/RecurringPatterns';
+import { RoundTripping } from '@/components/fraud/RoundTripping';
 import {
   mockLoans,
   bureauCompanyPolicies,
@@ -60,6 +63,11 @@ import {
   mockMonthlyBalances,
 } from '@/lib/bankingMockData';
 import {
+  mockLumpsumPatternAnalysis,
+  mockRecurringPatternAnalysis,
+  mockRoundTrippingAnalysis,
+} from '@/lib/fraudMockData';
+import {
   mockCommercialBureauSummary,
   mockIndividualBureauSummary,
   mockAIBureauInsights,
@@ -96,6 +104,8 @@ import {
   TrendingDown,
   Activity,
   Wallet,
+  Layers,
+  RefreshCw,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -141,6 +151,12 @@ const bankingSubTabs = [
   { id: 'bounce', label: 'Bounce Analysis', icon: TrendingDown },
 ];
 
+const fraudSubTabs = [
+  { id: 'lumpsum', label: 'Lumpsum Patterns', icon: Layers },
+  { id: 'recurring', label: 'Recurring Patterns', icon: Activity },
+  { id: 'round-tripping', label: 'Round Tripping', icon: RefreshCw },
+];
+
 export default function LoanAnalysis() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -149,6 +165,7 @@ export default function LoanAnalysis() {
   const [activeBureauSubTab, setActiveBureauSubTab] = useState('summary');
   const [activeGSTSubTab, setActiveGSTSubTab] = useState('overview');
   const [activeBankingSubTab, setActiveBankingSubTab] = useState('overview');
+  const [activeFraudSubTab, setActiveFraudSubTab] = useState('lumpsum');
 
   // Find loan by ID (fallback to first loan)
   const loan = mockLoans.find((l) => l.id === id) || mockLoans[0];
@@ -503,8 +520,51 @@ export default function LoanAnalysis() {
             </motion.div>
           </TabsContent>
 
+          {/* Fraud Assessment Tab Content */}
+          <TabsContent value="fraud" className="space-y-6">
+            {/* Fraud Sub Tabs */}
+            <Card className="border-border bg-card shadow-card">
+              <CardContent className="p-2">
+                <div className="flex flex-wrap gap-2">
+                  {fraudSubTabs.map((tab) => (
+                    <Button
+                      key={tab.id}
+                      variant={activeFraudSubTab === tab.id ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setActiveFraudSubTab(tab.id)}
+                      className={activeFraudSubTab === tab.id ? 'gradient-accent text-accent-foreground' : ''}
+                    >
+                      <tab.icon className="mr-1.5 h-4 w-4" />
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Fraud Sub Tab Content */}
+            <motion.div
+              key={activeFraudSubTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeFraudSubTab === 'lumpsum' && (
+                <LumpsumPatterns data={mockLumpsumPatternAnalysis} />
+              )}
+
+              {activeFraudSubTab === 'recurring' && (
+                <RecurringPatterns data={mockRecurringPatternAnalysis} />
+              )}
+
+              {activeFraudSubTab === 'round-tripping' && (
+                <RoundTripping data={mockRoundTrippingAnalysis} />
+              )}
+            </motion.div>
+          </TabsContent>
+
           {/* Other Tabs - Placeholder */}
-          {['fraud', 'personal', 'cam'].map((tabId) => (
+          {['personal', 'cam'].map((tabId) => (
             <TabsContent key={tabId} value={tabId}>
               <Card className="border-border bg-card shadow-card">
                 <CardHeader>
