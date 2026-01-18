@@ -25,6 +25,9 @@ import { BankingBounceAnalysis } from '@/components/banking/BankingBounceAnalysi
 import { LumpsumPatterns } from '@/components/fraud/LumpsumPatterns';
 import { RecurringPatterns } from '@/components/fraud/RecurringPatterns';
 import { RoundTripping } from '@/components/fraud/RoundTripping';
+import { ApplicantDetailsCard } from '@/components/personal/ApplicantDetailsCard';
+import { InterviewNotes } from '@/components/personal/InterviewNotes';
+import { DiscussionSummaryCard } from '@/components/personal/DiscussionSummaryCard';
 import {
   mockLoans,
   bureauCompanyPolicies,
@@ -67,6 +70,7 @@ import {
   mockRecurringPatternAnalysis,
   mockRoundTrippingAnalysis,
 } from '@/lib/fraudMockData';
+import { mockPersonalDiscussionData } from '@/lib/personalDiscussionMockData';
 import {
   mockCommercialBureauSummary,
   mockIndividualBureauSummary,
@@ -157,6 +161,12 @@ const fraudSubTabs = [
   { id: 'round-tripping', label: 'Round Tripping', icon: RefreshCw },
 ];
 
+const personalSubTabs = [
+  { id: 'applicant', label: 'Applicant Details', icon: User },
+  { id: 'interview', label: 'Interview Notes', icon: MessageSquare },
+  { id: 'summary', label: 'Discussion Summary', icon: FileText },
+];
+
 export default function LoanAnalysis() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -166,6 +176,7 @@ export default function LoanAnalysis() {
   const [activeGSTSubTab, setActiveGSTSubTab] = useState('overview');
   const [activeBankingSubTab, setActiveBankingSubTab] = useState('overview');
   const [activeFraudSubTab, setActiveFraudSubTab] = useState('lumpsum');
+  const [activePersonalSubTab, setActivePersonalSubTab] = useState('applicant');
 
   // Find loan by ID (fallback to first loan)
   const loan = mockLoans.find((l) => l.id === id) || mockLoans[0];
@@ -563,34 +574,77 @@ export default function LoanAnalysis() {
             </motion.div>
           </TabsContent>
 
-          {/* Other Tabs - Placeholder */}
-          {['personal', 'cam'].map((tabId) => (
-            <TabsContent key={tabId} value={tabId}>
-              <Card className="border-border bg-card shadow-card">
-                <CardHeader>
-                  <CardTitle className="font-display">
-                    {mainTabs.find((t) => t.id === tabId)?.label}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="py-16 text-center">
-                    <div className="h-16 w-16 rounded-full bg-secondary mx-auto flex items-center justify-center mb-4">
-                      {(() => {
-                        const Icon = mainTabs.find((t) => t.id === tabId)?.icon || FileText;
-                        return <Icon className="h-8 w-8 text-muted-foreground" />;
-                      })()}
-                    </div>
-                    <h3 className="font-display text-lg font-semibold text-foreground mb-2">
-                      {mainTabs.find((t) => t.id === tabId)?.label} Analysis
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Detailed analysis will be available here once documents are processed.
-                    </p>
+          {/* Personal Discussion Tab Content */}
+          <TabsContent value="personal" className="space-y-6">
+            {/* Personal Sub Tabs */}
+            <Card className="border-border bg-card shadow-card">
+              <CardContent className="p-2">
+                <div className="flex flex-wrap gap-2">
+                  {personalSubTabs.map((tab) => (
+                    <Button
+                      key={tab.id}
+                      variant={activePersonalSubTab === tab.id ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setActivePersonalSubTab(tab.id)}
+                      className={activePersonalSubTab === tab.id ? 'gradient-accent text-accent-foreground' : ''}
+                    >
+                      <tab.icon className="mr-1.5 h-4 w-4" />
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Personal Sub Tab Content */}
+            <motion.div
+              key={activePersonalSubTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activePersonalSubTab === 'applicant' && (
+                <ApplicantDetailsCard
+                  applicant={mockPersonalDiscussionData.applicantDetails}
+                  business={mockPersonalDiscussionData.businessDetails}
+                />
+              )}
+
+              {activePersonalSubTab === 'interview' && (
+                <InterviewNotes
+                  notes={mockPersonalDiscussionData.interviewNotes}
+                  financials={mockPersonalDiscussionData.financialDiscussion}
+                  character={mockPersonalDiscussionData.characterAssessment}
+                />
+              )}
+
+              {activePersonalSubTab === 'summary' && (
+                <DiscussionSummaryCard summary={mockPersonalDiscussionData.summary} />
+              )}
+            </motion.div>
+          </TabsContent>
+
+          {/* CAM Tab - Placeholder */}
+          <TabsContent value="cam">
+            <Card className="border-border bg-card shadow-card">
+              <CardHeader>
+                <CardTitle className="font-display">Credit Assessment Memo</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="py-16 text-center">
+                  <div className="h-16 w-16 rounded-full bg-secondary mx-auto flex items-center justify-center mb-4">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
+                  <h3 className="font-display text-lg font-semibold text-foreground mb-2">
+                    Credit Assessment Memo
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Detailed analysis will be available here once documents are processed.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </main>
     </div>
