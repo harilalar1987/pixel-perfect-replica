@@ -28,6 +28,10 @@ import { RoundTripping } from '@/components/fraud/RoundTripping';
 import { ApplicantDetailsCard } from '@/components/personal/ApplicantDetailsCard';
 import { InterviewNotes } from '@/components/personal/InterviewNotes';
 import { DiscussionSummaryCard } from '@/components/personal/DiscussionSummaryCard';
+import { RiskScoringCard } from '@/components/cam/RiskScoringCard';
+import { ProposedTermsCard } from '@/components/cam/ProposedTermsCard';
+import { ApprovalWorkflowCard } from '@/components/cam/ApprovalWorkflowCard';
+import { FinalRecommendationCard } from '@/components/cam/FinalRecommendationCard';
 import {
   mockLoans,
   bureauCompanyPolicies,
@@ -71,6 +75,7 @@ import {
   mockRoundTrippingAnalysis,
 } from '@/lib/fraudMockData';
 import { mockPersonalDiscussionData } from '@/lib/personalDiscussionMockData';
+import { mockCAMData } from '@/lib/camMockData';
 import {
   mockCommercialBureauSummary,
   mockIndividualBureauSummary,
@@ -110,6 +115,7 @@ import {
   Wallet,
   Layers,
   RefreshCw,
+  GitBranch,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -167,6 +173,13 @@ const personalSubTabs = [
   { id: 'summary', label: 'Discussion Summary', icon: FileText },
 ];
 
+const camSubTabs = [
+  { id: 'risk-scoring', label: 'Risk Scoring', icon: Shield },
+  { id: 'loan-terms', label: 'Loan Terms', icon: FileText },
+  { id: 'approval', label: 'Approval Workflow', icon: GitBranch },
+  { id: 'recommendation', label: 'Final Recommendation', icon: Sparkles },
+];
+
 export default function LoanAnalysis() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -177,6 +190,7 @@ export default function LoanAnalysis() {
   const [activeBankingSubTab, setActiveBankingSubTab] = useState('overview');
   const [activeFraudSubTab, setActiveFraudSubTab] = useState('lumpsum');
   const [activePersonalSubTab, setActivePersonalSubTab] = useState('applicant');
+  const [activeCAMSubTab, setActiveCAMSubTab] = useState('risk-scoring');
 
   // Find loan by ID (fallback to first loan)
   const loan = mockLoans.find((l) => l.id === id) || mockLoans[0];
@@ -624,26 +638,54 @@ export default function LoanAnalysis() {
             </motion.div>
           </TabsContent>
 
-          {/* CAM Tab - Placeholder */}
-          <TabsContent value="cam">
+          {/* CAM Tab Content */}
+          <TabsContent value="cam" className="space-y-6">
+            {/* CAM Sub Tabs */}
             <Card className="border-border bg-card shadow-card">
-              <CardHeader>
-                <CardTitle className="font-display">Credit Assessment Memo</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="py-16 text-center">
-                  <div className="h-16 w-16 rounded-full bg-secondary mx-auto flex items-center justify-center mb-4">
-                    <FileText className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <h3 className="font-display text-lg font-semibold text-foreground mb-2">
-                    Credit Assessment Memo
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Detailed analysis will be available here once documents are processed.
-                  </p>
+              <CardContent className="p-2">
+                <div className="flex flex-wrap gap-2">
+                  {camSubTabs.map((tab) => (
+                    <Button
+                      key={tab.id}
+                      variant={activeCAMSubTab === tab.id ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setActiveCAMSubTab(tab.id)}
+                      className={activeCAMSubTab === tab.id ? 'gradient-accent text-accent-foreground' : ''}
+                    >
+                      <tab.icon className="mr-1.5 h-4 w-4" />
+                      {tab.label}
+                    </Button>
+                  ))}
                 </div>
               </CardContent>
             </Card>
+
+            {/* CAM Sub Tab Content */}
+            <motion.div
+              key={activeCAMSubTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeCAMSubTab === 'risk-scoring' && (
+                <RiskScoringCard riskScoring={mockCAMData.riskScoring} />
+              )}
+
+              {activeCAMSubTab === 'loan-terms' && (
+                <ProposedTermsCard
+                  terms={mockCAMData.proposedTerms}
+                  financialHighlights={mockCAMData.financialHighlights}
+                />
+              )}
+
+              {activeCAMSubTab === 'approval' && (
+                <ApprovalWorkflowCard workflow={mockCAMData.approvalWorkflow} />
+              )}
+
+              {activeCAMSubTab === 'recommendation' && (
+                <FinalRecommendationCard recommendation={mockCAMData.recommendation} />
+              )}
+            </motion.div>
           </TabsContent>
         </Tabs>
       </main>
