@@ -116,7 +116,9 @@ import {
   Layers,
   RefreshCw,
   GitBranch,
+  Download,
 } from 'lucide-react';
+import { generateLoanAnalysisPDF } from '@/lib/pdfExport';
 import { format } from 'date-fns';
 
 const mainTabs = [
@@ -268,6 +270,35 @@ export default function LoanAnalysis() {
                       <p className="font-medium">{format(loan.updatedAt, 'dd MMM yyyy')}</p>
                     </div>
                   </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground border-primary-foreground/20"
+                    onClick={() => {
+                      generateLoanAnalysisPDF({
+                        loanId: loan.id,
+                        customerName: loan.customerName,
+                        loanAmount: loan.loanAmount,
+                        camData: mockCAMData,
+                        personalData: mockPersonalDiscussionData,
+                        commercialBureauSummary: mockCommercialBureauSummary,
+                        individualBureauSummary: mockIndividualBureauSummary,
+                        commercialLoans: mockCommercialLoans,
+                        individualLoans: mockIndividualLoans,
+                        commercialLoanSummary: mockCommercialLoanSummary,
+                        individualLoanSummary: mockIndividualLoanSummary,
+                        gstEntityDetails: mockGSTEntityDetails,
+                        bankAccounts: mockBankAccounts,
+                        transactionSummary: mockTransactionSummary,
+                        lumpsumPatterns: mockLumpsumPatternAnalysis,
+                        recurringPatterns: mockRecurringPatternAnalysis,
+                        roundTripping: mockRoundTrippingAnalysis,
+                      });
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export PDF
+                  </Button>
                 </div>
               </div>
             </div>
