@@ -30,7 +30,6 @@ import { InterviewNotes } from '@/components/personal/InterviewNotes';
 import { DiscussionSummaryCard } from '@/components/personal/DiscussionSummaryCard';
 import { RiskScoringCard } from '@/components/cam/RiskScoringCard';
 import { ProposedTermsCard } from '@/components/cam/ProposedTermsCard';
-import { ApprovalWorkflowCard } from '@/components/cam/ApprovalWorkflowCard';
 import { FinalRecommendationCard } from '@/components/cam/FinalRecommendationCard';
 import {
   mockLoans,
@@ -178,7 +177,6 @@ const personalSubTabs = [
 const camSubTabs = [
   { id: 'risk-scoring', label: 'Risk Scoring', icon: Shield },
   { id: 'loan-terms', label: 'Loan Terms', icon: FileText },
-  { id: 'approval', label: 'Approval Workflow', icon: GitBranch },
   { id: 'recommendation', label: 'Final Recommendation', icon: Sparkles },
 ];
 
@@ -709,9 +707,6 @@ export default function LoanAnalysis() {
                 />
               )}
 
-              {activeCAMSubTab === 'approval' && (
-                <ApprovalWorkflowCard workflow={mockCAMData.approvalWorkflow} />
-              )}
 
               {activeCAMSubTab === 'recommendation' && (
                 <FinalRecommendationCard recommendation={mockCAMData.recommendation} />
