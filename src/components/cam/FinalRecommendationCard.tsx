@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FinalRecommendation } from '@/types/cam';
 import { Sparkles, CheckCircle2, AlertTriangle, Shield, User, Calendar, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
+import { useCreateLoanDecision, useLoanDecision, useUpdateLoan } from '@/hooks/useLoans';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,13 +22,29 @@ import {
 
 interface FinalRecommendationCardProps {
   recommendation: FinalRecommendation;
+  loanId?: string;
 }
 
-export function FinalRecommendationCard({ recommendation }: FinalRecommendationCardProps) {
+export function FinalRecommendationCard({ recommendation, loanId }: FinalRecommendationCardProps) {
+  const { profile } = useAuth();
+  const createDecision = useCreateLoanDecision();
+  const updateLoan = useUpdateLoan();
+  const { data: existingDecision } = useLoanDecision(loanId);
+  
   const [decision, setDecision] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [comments, setComments] = useState('');
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [decisionDate, setDecisionDate] = useState<Date | null>(null);
+
+  // Load existing decision if available
+  useEffect(() => {
+    if (existingDecision) {
+      setDecision(existingDecision.decision as 'approved' | 'rejected');
+      setComments(existingDecision.comments || '');
+      setDecisionDate(new Date(existingDecision.decided_at));
+    }
+  }, [existingDecision]);
 
   const getDecisionBadge = (decision: string) => {
     switch (decision) {
@@ -41,21 +59,79 @@ export function FinalRecommendationCard({ recommendation }: FinalRecommendationC
     }
   };
 
-  const handleApprove = () => {
-    setDecision('approved');
-    setShowApproveDialog(false);
-    toast.success('Loan application approved successfully!', {
-      description: `Decision recorded on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
-    });
+  const handleApprove = async () => {
+    if (!loanId || !profile) {
+      // Fallback for mock data / no database
+      setDecision('approved');
+      setShowApproveDialog(false);
+      setDecisionDate(new Date());
+      toast.success('Loan application approved successfully!', {
+        description: `Decision recorded on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
+      });
+      return;
+    }
+
+    try {
+      await createDecision.mutateAsync({
+        loan_id: loanId,
+        decision: 'approved',
+        comments: comments || null,
+        decided_by: profile.id,
+      });
+
+      await updateLoan.mutateAsync({
+        id: loanId,
+        status: 'approved',
+      });
+
+      setDecision('approved');
+      setDecisionDate(new Date());
+      setShowApproveDialog(false);
+      toast.success('Loan application approved successfully!', {
+        description: `Decision saved to database on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
+      });
+    } catch (error) {
+      console.error('Error saving decision:', error);
+    }
   };
 
-  const handleReject = () => {
-    setDecision('rejected');
-    setShowRejectDialog(false);
-    toast.error('Loan application rejected', {
-      description: `Decision recorded on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
-    });
+  const handleReject = async () => {
+    if (!loanId || !profile) {
+      // Fallback for mock data / no database
+      setDecision('rejected');
+      setShowRejectDialog(false);
+      setDecisionDate(new Date());
+      toast.error('Loan application rejected', {
+        description: `Decision recorded on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
+      });
+      return;
+    }
+
+    try {
+      await createDecision.mutateAsync({
+        loan_id: loanId,
+        decision: 'rejected',
+        comments: comments || null,
+        decided_by: profile.id,
+      });
+
+      await updateLoan.mutateAsync({
+        id: loanId,
+        status: 'rejected',
+      });
+
+      setDecision('rejected');
+      setDecisionDate(new Date());
+      setShowRejectDialog(false);
+      toast.error('Loan application rejected', {
+        description: `Decision saved to database on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
+      });
+    } catch (error) {
+      console.error('Error saving decision:', error);
+    }
   };
+
+  const isLoading = createDecision.isPending || updateLoan.isPending;
 
   return (
     <>
@@ -155,6 +231,7 @@ export function FinalRecommendationCard({ recommendation }: FinalRecommendationC
                     size="lg"
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     onClick={() => setShowApproveDialog(true)}
+                    disabled={isLoading}
                   >
                     <ThumbsUp className="mr-2 h-5 w-5" />
                     Approve
@@ -164,6 +241,7 @@ export function FinalRecommendationCard({ recommendation }: FinalRecommendationC
                     variant="destructive"
                     className="flex-1"
                     onClick={() => setShowRejectDialog(true)}
+                    disabled={isLoading}
                   >
                     <ThumbsDown className="mr-2 h-5 w-5" />
                     Reject
@@ -184,7 +262,7 @@ export function FinalRecommendationCard({ recommendation }: FinalRecommendationC
                     {decision === 'approved' ? 'You have approved this application' : 'You have rejected this application'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Decision recorded on {format(new Date(), 'dd MMM yyyy, HH:mm')}
+                    Decision recorded on {decisionDate ? format(decisionDate, 'dd MMM yyyy, HH:mm') : format(new Date(), 'dd MMM yyyy, HH:mm')}
                   </p>
                   {comments && (
                     <p className="text-sm text-foreground mt-2">"{comments}"</p>
@@ -209,9 +287,13 @@ export function FinalRecommendationCard({ recommendation }: FinalRecommendationC
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-green-600 hover:bg-green-700" onClick={handleApprove}>
-              Approve Application
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-green-600 hover:bg-green-700" 
+              onClick={handleApprove}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Saving...' : 'Approve Application'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -230,9 +312,13 @@ export function FinalRecommendationCard({ recommendation }: FinalRecommendationC
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleReject}>
-              Reject Application
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700" 
+              onClick={handleReject}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Saving...' : 'Reject Application'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
