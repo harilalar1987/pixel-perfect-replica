@@ -709,7 +709,7 @@ export default function LoanAnalysis() {
 
 
               {activeCAMSubTab === 'recommendation' && (
-                <FinalRecommendationCard recommendation={mockCAMData.recommendation} />
+                <FinalRecommendationCard recommendation={mockCAMData.recommendation} loanId={id} />
               )}
             </motion.div>
           </TabsContent>
