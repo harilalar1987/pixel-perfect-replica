@@ -14,7 +14,128 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      loan_decisions: {
+        Row: {
+          comments: string | null
+          decided_at: string
+          decided_by: string
+          decision: string
+          id: string
+          loan_id: string
+        }
+        Insert: {
+          comments?: string | null
+          decided_at?: string
+          decided_by: string
+          decision: string
+          id?: string
+          loan_id: string
+        }
+        Update: {
+          comments?: string | null
+          decided_at?: string
+          decided_by?: string
+          decision?: string
+          id?: string
+          loan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loan_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_decisions_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loans: {
+        Row: {
+          anchor_name: string | null
+          application_id: string
+          assigned_analyst_id: string | null
+          created_at: string
+          customer_name: string
+          id: string
+          loan_amount: number
+          loan_type: Database["public"]["Enums"]["loan_type"]
+          status: Database["public"]["Enums"]["loan_status"]
+          team: string | null
+          updated_at: string
+        }
+        Insert: {
+          anchor_name?: string | null
+          application_id: string
+          assigned_analyst_id?: string | null
+          created_at?: string
+          customer_name: string
+          id?: string
+          loan_amount: number
+          loan_type?: Database["public"]["Enums"]["loan_type"]
+          status?: Database["public"]["Enums"]["loan_status"]
+          team?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anchor_name?: string | null
+          application_id?: string
+          assigned_analyst_id?: string | null
+          created_at?: string
+          customer_name?: string
+          id?: string
+          loan_amount?: number
+          loan_type?: Database["public"]["Enums"]["loan_type"]
+          status?: Database["public"]["Enums"]["loan_status"]
+          team?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loans_assigned_analyst_id_fkey"
+            columns: ["assigned_analyst_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          designation: string | null
+          full_name: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          designation?: string | null
+          full_name: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          designation?: string | null
+          full_name?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +144,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      loan_status:
+        | "under-review"
+        | "approved"
+        | "rejected"
+        | "processing"
+        | "disbursed"
+      loan_type: "WCBL" | "Term Loan" | "LAP" | "OD" | "CC"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +277,15 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      loan_status: [
+        "under-review",
+        "approved",
+        "rejected",
+        "processing",
+        "disbursed",
+      ],
+      loan_type: ["WCBL", "Term Loan", "LAP", "OD", "CC"],
+    },
   },
 } as const
