@@ -1,21 +1,86 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { LoanCard } from '@/components/loans/LoanCard';
 import { LoanFilters } from '@/components/loans/LoanFilters';
-import { mockLoans } from '@/lib/mockData';
+import { useLoans, Loan } from '@/hooks/useLoans';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { FolderOpen, Users, TrendingUp, Clock } from 'lucide-react';
+import { FolderOpen, Users, TrendingUp, Clock, Loader2 } from 'lucide-react';
+import { LoanApplication, LoanType, LoanStatus } from '@/types/loan';
+
+// Map database loan to UI LoanApplication format
+const mapLoanToApplication = (loan: Loan): LoanApplication => {
+  const loanTypeMap: Record<string, LoanType> = {
+    'WCBL': 'Working Capital',
+    'Term Loan': 'Term Loan',
+    'LAP': 'Property Loan',
+    'OD': 'Overdraft',
+    'CC': 'Cash Credit',
+  };
+
+  const statusMap: Record<string, LoanStatus> = {
+    'under-review': 'Under Review',
+    'approved': 'Approved',
+    'rejected': 'Rejected',
+    'processing': 'Processing',
+    'disbursed': 'Approved',
+  };
+
+  return {
+    id: loan.id,
+    customerName: loan.customer_name,
+    loanAmount: loan.loan_amount,
+    loanType: loanTypeMap[loan.loan_type] || 'Working Capital',
+    anchorName: loan.anchor_name || undefined,
+    assignedAnalyst: loan.profiles?.full_name || 'Unassigned',
+    status: statusMap[loan.status] || 'Under Review',
+    createdAt: new Date(loan.created_at),
+    updatedAt: new Date(loan.updated_at),
+    teamName: loan.team || 'Retail',
+  };
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data: loans, isLoading, error } = useLoans();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAnalyst, setSelectedAnalyst] = useState('all');
   const [selectedTimeRange, setSelectedTimeRange] = useState('all');
   const [selectedLoanType, setSelectedLoanType] = useState('All Types');
 
+  // Set up real-time subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('loans-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'loans',
+        },
+        () => {
+          // Invalidate and refetch loans when any change occurs
+          queryClient.invalidateQueries({ queryKey: ['loans'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  const loanApplications = useMemo(() => {
+    return (loans || []).map(mapLoanToApplication);
+  }, [loans]);
+
   const filteredLoans = useMemo(() => {
-    return mockLoans.filter((loan) => {
+    return loanApplications.filter((loan) => {
       const matchesSearch =
         loan.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         loan.id.toLowerCase().includes(searchQuery.toLowerCase());
@@ -23,16 +88,16 @@ export default function Dashboard() {
       const matchesLoanType = selectedLoanType === 'All Types' || loan.loanType === selectedLoanType;
       return matchesSearch && matchesAnalyst && matchesLoanType;
     });
-  }, [searchQuery, selectedAnalyst, selectedLoanType]);
+  }, [loanApplications, searchQuery, selectedAnalyst, selectedLoanType]);
 
   const stats = useMemo(() => {
     return {
-      total: mockLoans.length,
-      underReview: mockLoans.filter((l) => l.status === 'Under Review').length,
-      approved: mockLoans.filter((l) => l.status === 'Approved').length,
-      processing: mockLoans.filter((l) => l.status === 'Processing').length,
+      total: loanApplications.length,
+      underReview: loanApplications.filter((l) => l.status === 'Under Review').length,
+      approved: loanApplications.filter((l) => l.status === 'Approved').length,
+      processing: loanApplications.filter((l) => l.status === 'Processing').length,
     };
-  }, []);
+  }, [loanApplications]);
 
   const handleNewApplication = () => {
     navigate('/new-application');
@@ -41,6 +106,19 @@ export default function Dashboard() {
   const handleLoanClick = (loanId: string) => {
     navigate(`/loan/${loanId}`);
   };
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header onNewApplication={handleNewApplication} />
+        <main className="container py-8">
+          <div className="text-center py-16 bg-card border border-border rounded-xl">
+            <p className="text-destructive">Failed to load loans. Please try again.</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -110,7 +188,11 @@ export default function Dashboard() {
             </h2>
           </div>
 
-          {filteredLoans.length > 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-accent" />
+            </div>
+          ) : filteredLoans.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredLoans.map((loan) => (
                 <LoanCard
@@ -125,7 +207,9 @@ export default function Dashboard() {
               <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="font-display text-lg font-semibold text-foreground mb-2">No loans found</h3>
               <p className="text-muted-foreground">
-                Try adjusting your search or filter criteria
+                {loanApplications.length === 0 
+                  ? 'Create your first loan application to get started'
+                  : 'Try adjusting your search or filter criteria'}
               </p>
             </div>
           )}
