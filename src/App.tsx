@@ -49,29 +49,33 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-    <Route path="/login" element={<AuthRoute><AuthForm /></AuthRoute>} />
-    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-    <Route path="/new-application" element={<ProtectedRoute><NewApplication /></ProtectedRoute>} />
-    <Route path="/loan/:id" element={<ProtectedRoute><LoanAnalysis /></ProtectedRoute>} />
-    <Route path="*" element={<NotFound />} />
-  </Routes>
-);
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/login" element={<AuthRoute><AuthForm /></AuthRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/new-application" element={<ProtectedRoute><NewApplication /></ProtectedRoute>} />
+      <Route path="/loan/:id" element={<ProtectedRoute><LoanAnalysis /></ProtectedRoute>} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;
