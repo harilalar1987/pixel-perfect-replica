@@ -18,6 +18,8 @@ interface LoanFiltersProps {
   onTimeRangeChange: (value: string) => void;
   selectedLoanType: string;
   onLoanTypeChange: (value: string) => void;
+  /** Prefer passing real analysts from the parent; mocks are only used as a fallback */
+  analystsList?: string[];
 }
 
 const timeRanges = [
@@ -52,6 +54,7 @@ export function LoanFilters({
   onTimeRangeChange,
   selectedLoanType,
   onLoanTypeChange,
+  analystsList = undefined,
 }: LoanFiltersProps) {
   return (
     <div className="flex flex-col md:flex-row gap-4 p-4 bg-card rounded-xl border border-border shadow-card">
@@ -79,7 +82,7 @@ export function LoanFilters({
           </SelectTrigger>
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">All Analysts</SelectItem>
-            {analysts.map((analyst) => (
+            {(analystsList ?? analysts).map((analyst) => (
               <SelectItem key={analyst} value={analyst}>
                 {analyst}
               </SelectItem>

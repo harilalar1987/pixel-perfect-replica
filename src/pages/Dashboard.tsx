@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { FolderOpen, Users, TrendingUp, Clock, Loader2 } from 'lucide-react';
 import { LoanApplication, LoanType, LoanStatus } from '@/types/loan';
+import DbConnectionCheck from "@/components/DbConnectionCheck";
 
 // Map database loan to UI LoanApplication format
 const mapLoanToApplication = (loan: Loan): LoanApplication => {
@@ -79,6 +80,11 @@ export default function Dashboard() {
     return (loans || []).map(mapLoanToApplication);
   }, [loans]);
 
+  // Derive analyst list from DB-backed loans (prefer real data over mocks)
+  const analystsList = useMemo(() => {
+    return Array.from(new Set((loanApplications || []).map((l) => l.assignedAnalyst).filter(Boolean)));
+  }, [loanApplications]);
+
   const filteredLoans = useMemo(() => {
     return loanApplications.filter((loan) => {
       const matchesSearch =
@@ -123,6 +129,19 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Header onNewApplication={handleNewApplication} />
+
+      <header className="px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">My Loans</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage and analyze all loan applications for Team Supermoney
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          {/* Existing header controls */}
+          <DbConnectionCheck />
+        </div>
+      </header>
 
       <main className="container py-8 space-y-8">
         {/* Page Header */}
@@ -175,6 +194,7 @@ export default function Dashboard() {
           onTimeRangeChange={setSelectedTimeRange}
           selectedLoanType={selectedLoanType}
           onLoanTypeChange={setSelectedLoanType}
+          analystsList={analystsList}
         />
 
         {/* Loan Grid */}

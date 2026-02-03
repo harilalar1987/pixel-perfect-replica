@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useLoan } from '@/hooks/useLoans';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,6 +20,7 @@ import { GSTRevenueITC } from '@/components/gst/GSTRevenueITC';
 import { GSTFilingDelays } from '@/components/gst/GSTFilingDelays';
 import { GSTParties } from '@/components/gst/GSTParties';
 import { BankingAccountOverview } from '@/components/banking/BankingAccountOverview';
+import { useBankStatements } from '@/hooks/useLoans';
 import { BankingCashFlow } from '@/components/banking/BankingCashFlow';
 import { BankingBalances } from '@/components/banking/BankingBalances';
 import { BankingBounceAnalysis } from '@/components/banking/BankingBounceAnalysis';
@@ -183,6 +185,7 @@ const camSubTabs = [
 export default function LoanAnalysis() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = typeof window !== 'undefined' ? new URL(window.location.href) : null;
   const [activeMainTab, setActiveMainTab] = useState('pre-approval');
   const [activeSubTab, setActiveSubTab] = useState('bureau-analysis');
   const [activeBureauSubTab, setActiveBureauSubTab] = useState('summary');
@@ -192,8 +195,32 @@ export default function LoanAnalysis() {
   const [activePersonalSubTab, setActivePersonalSubTab] = useState('applicant');
   const [activeCAMSubTab, setActiveCAMSubTab] = useState('risk-scoring');
 
-  // Find loan by ID (fallback to first loan)
-  const loan = mockLoans.find((l) => l.id === id) || mockLoans[0];
+  // Prefer DB-backed loan (useLoan). Only fall back to mock data when BOTH the dev env flag
+  // and an explicit query param are present (safe developer-only demo mode).
+  // This prevents mock values (e.g. "Diamond Agencies") from appearing as real data in normal runs.
+  const { data: dbLoan, isLoading: dbLoading } = useLoan(id);
+  const envEnableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
+  const enableMocks = envEnableMocks && Boolean(location && new URLSearchParams(location.search).get('demo'));
+
+  const normalizeDbLoan = (l: any) => {
+    if (!l) return null;
+    return {
+      id: l.id || l.application_id,
+      customerName: l.customer_name || l.customerName || '—',
+      loanAmount: l.loan_amount != null ? Number(l.loan_amount) : l.loanAmount || 0,
+      loanType: l.loan_type || l.loanType || 'Working Capital',
+      assignedAnalyst: l.profiles?.full_name || l.assigned_analyst_id || l.assignedAnalyst || '—',
+      status: l.status || 'under-review',
+      createdAt: l.created_at ? new Date(l.created_at) : l.createdAt,
+      updatedAt: l.updated_at ? new Date(l.updated_at) : l.updatedAt,
+      teamName: l.team || l.teamName,
+    };
+  };
+
+  // Resolve priority: DB row -> mock (only if enabled) -> null
+  const loanFromDb = normalizeDbLoan(dbLoan);
+  const loanFromMock = enableMocks ? mockLoans.find((l) => l.id === id) || mockLoans[0] : null;
+  const loan = loanFromDb ?? loanFromMock ?? null;
 
   const formatAmount = (amount: number) => {
     if (amount >= 10000000) {
@@ -203,6 +230,38 @@ export default function LoanAnalysis() {
     }
     return `₹${amount.toLocaleString('en-IN')}`;
   };
+
+  // Loading / empty-state guards
+  if (dbLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container py-6">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+            <p className="text-sm text-muted-foreground">Loading loan…</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!loan) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container py-6">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">No loan found</h2>
+            <p className="mt-2 text-sm text-muted-foreground">There is no loan with that id in the database. To view demo data only (developer mode), set <code>VITE_ENABLE_MOCKS=true</code> in your <code>.env</code> and open this page with <code>?demo=true</code> in the URL.</p>
+            <div className="mt-4 flex gap-2">
+              <Button onClick={() => window.history.back()}>Back</Button>
+              <Button onClick={() => navigate('/new-application')} variant="secondary">Create new application</Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -218,6 +277,16 @@ export default function LoanAnalysis() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Dashboard
         </Button>
+
+        {/* Visible demo indicator when mock data is being used intentionally */}
+        {loanFromMock && !loanFromDb && (
+          <div className="mb-4 -ml-2">
+            <div className="inline-flex items-center gap-3 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-amber-800 text-sm font-semibold">
+              <svg width="12" height="12" viewBox="0 0 24 24" className="inline-block"><circle cx="12" cy="12" r="12" fill="#92400E"/></svg>
+              DEMO DATA — not persisted (use <code className="font-mono">?demo=true</code> to enable)
+            </div>
+          </div>
+        )}
 
         {/* Loan Header */}
         <motion.div
@@ -237,7 +306,7 @@ export default function LoanAnalysis() {
                       {loan.status}
                     </StatusBadge>
                   </div>
-                  <p className="text-primary-foreground/70 text-sm">{loan.id}</p>
+                  <p className="sr-only">{loan.id}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-6 text-primary-foreground">
                   <div className="flex items-center gap-2">
@@ -541,13 +610,61 @@ export default function LoanAnalysis() {
               transition={{ duration: 0.2 }}
             >
               {activeBankingSubTab === 'overview' && (
-                <BankingAccountOverview
-                  accounts={mockBankAccounts}
-                  transactionSummary={mockTransactionSummary}
-                  conductAnalysis={mockBankingConductAnalysis}
-                  redFlags={mockBankingRedFlags}
-                  aiAssessment={mockAIBankingAssessment}
-                />
+                (() => {
+                  const { data: dbStmts } = useBankStatements(id);
+
+                  // If DB has parsed statements, prefer them over mocks
+                  if (Array.isArray(dbStmts) && dbStmts.length > 0) {
+                    const accounts = dbStmts.map((s: any) => ({
+                      id: s.id,
+                      maskedAccountNumber: s.account_mask || (s.account_number ? `XXXX${String(s.account_number).slice(-4)}` : '—'),
+                      bankName: (s.meta && s.meta.bank_name) || '—',
+                      accountType: 'Current Account' as const,
+                      branchName: s.meta?.branch || undefined,
+                      ifscCode: s.meta?.ifsc || undefined,
+                      accountName: s.account_number || '—',
+                      statementPeriod: s.statement_from && s.statement_to ? `${new Date(s.statement_from).toLocaleDateString()} - ${new Date(s.statement_to).toLocaleDateString()}` : '—',
+                    }));
+
+                    const allTx = (dbStmts || []).flatMap((s: any) => (s.bank_transactions || []));
+                    const totalCredits = allTx.filter((t: any) => t.direction === 'credit').reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+                    const totalDebits = allTx.filter((t: any) => t.direction === 'debit').reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+                    const months = dbStmts.reduce((acc: Set<string>, s: any) => {
+                      if (s.statement_from && s.statement_to) {
+                        acc.add(`${s.statement_from}_${s.statement_to}`);
+                      }
+                      return acc;
+                    }, new Set()).size || 6;
+
+                    const transactionSummary = {
+                      totalCredits,
+                      totalDebits,
+                      totalTransactions: allTx.length,
+                      analysisPeriods: months,
+                    };
+
+                    return (
+                      <BankingAccountOverview
+                        accounts={accounts}
+                        transactionSummary={transactionSummary}
+                        conductAnalysis={mockBankingConductAnalysis}
+                        redFlags={mockBankingRedFlags}
+                        aiAssessment={mockAIBankingAssessment}
+                      />
+                    );
+                  }
+
+                  // fallback to mocks
+                  return (
+                    <BankingAccountOverview
+                      accounts={mockBankAccounts}
+                      transactionSummary={mockTransactionSummary}
+                      conductAnalysis={mockBankingConductAnalysis}
+                      redFlags={mockBankingRedFlags}
+                      aiAssessment={mockAIBankingAssessment}
+                    />
+                  );
+                })()
               )}
 
               {activeBankingSubTab === 'cash-flow' && (

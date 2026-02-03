@@ -66,7 +66,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <h1 className="font-display text-2xl font-bold">Supermoney</h1>
-                <p className="text-primary-foreground/70 text-sm">Credit Intelligence</p>
+                <p className="sr-only">Credit Intelligence</p>
               </div>
             </div>
             

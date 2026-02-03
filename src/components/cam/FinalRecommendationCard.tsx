@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FinalRecommendation } from '@/types/cam';
 import { Sparkles, CheckCircle2, AlertTriangle, Shield, User, Calendar, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
@@ -8,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { useCreateLoanDecision, useLoanDecision, useUpdateLoan } from '@/hooks/useLoans';
+import { useCreateDecisionRpc, useLoanDecision, useLoan } from '@/hooks/useLoans';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,11 +27,14 @@ interface FinalRecommendationCardProps {
 }
 
 export function FinalRecommendationCard({ recommendation, loanId }: FinalRecommendationCardProps) {
+  const navigate = useNavigate();
   const { profile } = useAuth();
-  const createDecision = useCreateLoanDecision();
-  const updateLoan = useUpdateLoan();
+  const createDecisionRpc = useCreateDecisionRpc();
   const { data: existingDecision } = useLoanDecision(loanId);
-  
+  // Check whether the loan exists in the DB (guard against demo/mock rows)
+  const { data: dbLoan, isLoading: dbLoanLoading } = useLoan(loanId);
+  const isPersisted = !!dbLoan;
+
   const [decision, setDecision] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [comments, setComments] = useState('');
   const [showApproveDialog, setShowApproveDialog] = useState(false);
@@ -60,8 +64,8 @@ export function FinalRecommendationCard({ recommendation, loanId }: FinalRecomme
   };
 
   const handleApprove = async () => {
-    if (!loanId || !profile) {
-      // Fallback for mock data / no database
+    if (!profile) {
+      // No authenticated user — behave like demo fallback
       setDecision('approved');
       setShowApproveDialog(false);
       setDecisionDate(new Date());
@@ -71,33 +75,44 @@ export function FinalRecommendationCard({ recommendation, loanId }: FinalRecomme
       return;
     }
 
+    // If we don't have a DB row, behave as demo (buttons are normally disabled in this case)
+    if (!dbLoan) {
+      setDecision('approved');
+      setShowApproveDialog(false);
+      setDecisionDate(new Date());
+      toast.success('Loan application approved (local demo)', {
+        description: `This decision was not persisted because the loan is not in the database.`,
+      });
+      return;
+    }
+
+    const targetLoanId = dbLoan.id;
+
     try {
-      await createDecision.mutateAsync({
-        loan_id: loanId,
+      // Atomic RPC: insert decision + update status
+      await createDecisionRpc.mutateAsync({
+        loan_id: targetLoanId,
         decision: 'approved',
         comments: comments || null,
         decided_by: profile.id,
       });
 
-      await updateLoan.mutateAsync({
-        id: loanId,
-        status: 'approved',
-      });
-
       setDecision('approved');
       setDecisionDate(new Date());
       setShowApproveDialog(false);
-      toast.success('Loan application approved successfully!', {
-        description: `Decision saved to database on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
+      toast.success('Loan application approved!', {
+        description: `Saved to database (application_id: ${dbLoan.application_id}) on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
       });
     } catch (error) {
-      console.error('Error saving decision:', error);
+      console.error('Error saving approval for', { targetLoanId, application_id: dbLoan?.application_id, error });
+      const msg = (error as any)?.message || 'Unexpected error saving approval';
+      toast.error('Failed to save approval', { description: msg });
     }
   };
 
   const handleReject = async () => {
-    if (!loanId || !profile) {
-      // Fallback for mock data / no database
+    if (!profile) {
+      // No authenticated user — demo fallback
       setDecision('rejected');
       setShowRejectDialog(false);
       setDecisionDate(new Date());
@@ -107,31 +122,40 @@ export function FinalRecommendationCard({ recommendation, loanId }: FinalRecomme
       return;
     }
 
+    if (!dbLoan) {
+      setDecision('rejected');
+      setShowRejectDialog(false);
+      setDecisionDate(new Date());
+      toast.error('Loan application rejected (local demo)', {
+        description: `This decision was not persisted because the loan is not in the database.`,
+      });
+      return;
+    }
+
+    const targetLoanId = dbLoan.id;
+
     try {
-      await createDecision.mutateAsync({
-        loan_id: loanId,
+      await createDecisionRpc.mutateAsync({
+        loan_id: targetLoanId,
         decision: 'rejected',
         comments: comments || null,
         decided_by: profile.id,
-      });
-
-      await updateLoan.mutateAsync({
-        id: loanId,
-        status: 'rejected',
       });
 
       setDecision('rejected');
       setDecisionDate(new Date());
       setShowRejectDialog(false);
       toast.error('Loan application rejected', {
-        description: `Decision saved to database on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
+        description: `Decision saved to database (application_id: ${dbLoan.application_id}) on ${format(new Date(), 'dd MMM yyyy, HH:mm')}`,
       });
     } catch (error) {
-      console.error('Error saving decision:', error);
+      console.error('Error saving rejection for', { targetLoanId, application_id: dbLoan?.application_id, error });
+      const msg = (error as any)?.message || 'Unexpected error saving rejection';
+      toast.error('Failed to save rejection', { description: msg });
     }
   };
 
-  const isLoading = createDecision.isPending || updateLoan.isPending;
+  const isLoading = createDecisionRpc.isPending;
 
   return (
     <>
@@ -215,6 +239,20 @@ export function FinalRecommendationCard({ recommendation, loanId }: FinalRecomme
           {/* Decision Section */}
           {decision === 'pending' ? (
             <div className="p-4 rounded-lg border border-border bg-secondary/20">
+              {/* Demo/data guard */}
+              {!isPersisted && !dbLoanLoading && (
+                <div className="mb-4 p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-between">
+                  <div className="text-sm">
+                    This appears to be demo/mock data and is not persisted to the database — actions like <strong>Approve</strong> are disabled.
+                  </div>
+                  <div className="ml-4 flex-shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => navigate('/new-application')}>
+                      Create in DB
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 mb-4">
                 <MessageSquare className="h-5 w-5 text-primary" />
                 <h4 className="font-semibold text-foreground">Your Decision</h4>
@@ -231,7 +269,7 @@ export function FinalRecommendationCard({ recommendation, loanId }: FinalRecomme
                     size="lg"
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     onClick={() => setShowApproveDialog(true)}
-                    disabled={isLoading}
+                    disabled={isLoading || !isPersisted}
                   >
                     <ThumbsUp className="mr-2 h-5 w-5" />
                     Approve
@@ -241,7 +279,7 @@ export function FinalRecommendationCard({ recommendation, loanId }: FinalRecomme
                     variant="destructive"
                     className="flex-1"
                     onClick={() => setShowRejectDialog(true)}
-                    disabled={isLoading}
+                    disabled={isLoading || !isPersisted}
                   >
                     <ThumbsDown className="mr-2 h-5 w-5" />
                     Reject

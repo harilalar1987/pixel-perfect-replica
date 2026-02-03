@@ -30,6 +30,9 @@ import {
   User,
 } from 'lucide-react';
 import { LoanType } from '@/types/loan';
+import { createClient } from '@supabase/supabase-js';
+import { parseBankFile, ParsedStatement } from '@/lib/bankParser';
+import { useUploadAndParseBankStatement } from '@/hooks/useLoans';
 
 const loanTypes: LoanType[] = [
   'Working Capital',
@@ -71,7 +74,9 @@ export default function NewApplication() {
   // File upload state
   const [bureauReports, setBureauReports] = useState<UploadedFile[]>([]);
   const [bankStatements, setBankStatements] = useState<UploadedFile[]>([]);
+  const [bankFiles, setBankFiles] = useState<File[]>([]);
   const [gstDocuments, setGstDocuments] = useState<UploadedFile[]>([]);
+  const [bankPreviews, setBankPreviews] = useState<ParsedStatement[]>([]);
   const [bankPassword, setBankPassword] = useState('');
   const [showPasswordField, setShowPasswordField] = useState(false);
 
@@ -97,6 +102,29 @@ export default function NewApplication() {
     }
   };
 
+  // Specialized handler for bank statements: parse CSV/XLSX client-side and keep a preview
+  const handleBankFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const arr = Array.from(files);
+    // update metadata state + keep the original File for upload
+    setBankStatements((prev) => [...prev, ...arr.map((f) => ({ name: f.name, size: f.size, type: f.type }))]);
+    setBankFiles((prev) => [...prev, ...arr]);
+
+    // parse and keep a lightweight preview for the user
+    const previews: ParsedStatement[] = [];
+    for (const f of arr) {
+      try {
+        const parsed = await parseBankFile(f);
+        previews.push(parsed);
+      } catch (err) {
+        console.warn('Failed to parse bank file for preview', err);
+        previews.push({ transactions: [], meta: { error: 'parse_failed' } });
+      }
+    }
+    setBankPreviews((prev) => [...prev, ...previews]);
+  };
+
   const isStep1Valid = customerName && loanAmount && loanType;
   const isStep2Valid = bureauReports.length > 0 && bankStatements.length > 0;
 
@@ -120,12 +148,107 @@ export default function NewApplication() {
     navigate('/dashboard');
   };
 
-  const handleSubmit = () => {
-    toast({
-      title: 'Application Submitted',
-      description: 'Your loan analysis has been created. 1 credit consumed.',
-    });
-    navigate('/loan/LN-2024-001');
+  const uploadAndParse = useUploadAndParseBankStatement();
+
+  const handleSubmit = async () => {
+    // Map frontend values to DB schema and validate required columns
+    const mapLoanType = (frontend: string | '') => {
+      // DB enum: ('WCBL', 'Term Loan', 'LAP', 'OD', 'CC')
+      return frontend === 'Working Capital' ? 'WCBL'
+        : frontend === 'Term Loan' ? 'Term Loan'
+        : frontend === 'Overdraft' ? 'OD'
+        : frontend === 'Cash Credit' ? 'CC'
+        : frontend === 'Property Loan' ? 'LAP'
+        : frontend === 'Credit Card' ? 'CC'
+        : frontend === 'Equipment Finance' ? 'Term Loan'
+        : frontend === 'Business Expansion' ? 'Term Loan'
+        : frontend === 'Personal Loan' ? 'Term Loan'
+        : 'WCBL';
+    };
+
+    const generateApplicationId = () => `LN-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+
+    const payloadForDb: Record<string, any> = {
+      application_id: generateApplicationId(),
+      customer_name: customerName || null,
+      loan_amount: loanAmount ? Number(loanAmount) : null,
+      loan_type: mapLoanType(loanType || ''),
+      anchor_name: anchorName || null,
+      // team will default to 'Retail' in DB if omitted
+    };
+
+    // Client-side validation for required DB fields
+    if (!payloadForDb.application_id || !payloadForDb.customer_name || payloadForDb.loan_amount == null) {
+      console.warn('Validation failed before submit:', payloadForDb);
+      toast({ title: 'Validation error', description: 'Please provide Customer Name and Loan Amount.' });
+      return;
+    }
+
+    console.log('Submitting new loan payload (DB schema):', payloadForDb);
+
+    try {
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      if (!SUPABASE_URL || !SUPABASE_KEY) {
+        const msg = 'Missing Supabase env vars (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY)';
+        console.error(msg);
+        toast({ title: 'Configuration error', description: msg });
+        return;
+      }
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      // Insert only known columns (drop anything that doesn't exist in DB schema)
+      const { data, error } = await supabase.from('loans').insert(payloadForDb).select();
+
+      if (error) {
+        console.error('Supabase insert error:', error);
+
+        // If error indicates missing/renamed DB column, surface a helpful message
+        if (error.message && /Could not find the/.test(error.message)) {
+          console.error('Column mismatch — app is sending keys that do not exist in the loans table.');
+          toast({ title: 'Submission failed', description: `Schema mismatch: ${error.message}` });
+          return;
+        }
+
+        // RLS / permission errors
+        if (error.message && /permission denied|forbidden|row level security/i.test(error.message)) {
+          toast({ title: 'Permission denied', description: 'Ensure the user is authenticated and RLS policies allow inserts.' });
+          return;
+        }
+
+        toast({ title: 'Submission failed', description: error.message || 'Unable to create loan' });
+        return;
+      }
+
+      console.log('Insert result:', data);
+
+      const created = Array.isArray(data) && data[0] ? data[0] : data;
+      const id = created && (created.id || created.application_id || created.loan_id);
+
+      // If bank files were selected, upload & parse them and persist parsed rows before navigating
+      if (id && bankFiles.length > 0) {
+        try {
+          await Promise.all(bankFiles.map((f) => uploadAndParse.mutateAsync({ file: f, loanId: id })));
+          toast({ title: 'Application Submitted', description: 'Bank statements uploaded and parsed.' });
+        } catch (err) {
+          console.warn('One or more bank files failed to ingest:', err);
+          toast({ title: 'Partial success', description: 'Loan created but one or more bank files failed to parse.' });
+        }
+      } else {
+        toast({ title: 'Application Submitted', description: 'Your loan analysis has been created. 1 credit consumed.' });
+      }
+
+      if (id) {
+        navigate(`/loan/${id}`);
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (e) {
+      console.error('Unexpected error creating loan:', e);
+      toast({ title: 'Submission error', description: String(e) });
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -383,8 +506,8 @@ export default function NewApplication() {
                       id="bank"
                       className="hidden"
                       multiple
-                      accept=".pdf,.xlsx,.xls"
-                      onChange={(e) => handleFileUpload(e, setBankStatements)}
+                      accept=".csv,.pdf,.xlsx,.xls"
+                      onChange={handleBankFileChange}
                     />
                     <label htmlFor="bank" className="cursor-pointer">
                       <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -392,9 +515,38 @@ export default function NewApplication() {
                         Click to upload bank statements
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        PDF, Excel up to 10MB
+                        CSV, Excel or PDF up to 10MB (CSV/XLSX parsed instantly)
                       </p>
                     </label>
+
+                    {/* preview (first file) */}
+                    {bankPreviews[0] && (
+                      <div className="mt-4 text-left">
+                        <p className="text-sm font-medium">Preview — first 5 transactions</p>
+                        <div className="mt-2 overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-muted-foreground text-xs">
+                                <th className="text-left">Date</th>
+                                <th className="text-right">Amount</th>
+                                <th className="text-left">Direction</th>
+                                <th className="text-left">Narration</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {bankPreviews[0].transactions.slice(0, 5).map((t, i) => (
+                                <tr key={i} className="border-t border-border/50">
+                                  <td className="py-2">{t.occurred_at}</td>
+                                  <td className="py-2 text-right">{t.amount.toLocaleString('en-IN')}</td>
+                                  <td className="py-2">{t.direction}</td>
+                                  <td className="py-2">{t.narration || t.counterparty || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {showPasswordField && (

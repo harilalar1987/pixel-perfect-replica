@@ -8,7 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:diag": "node -r dotenv/config scripts/test_db_connection.js",
+    "test": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -41,6 +43,8 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/supabase-js": "^2.91.0",
     "@tanstack/react-query": "^5.83.0",
+    "papaparse": "^5.4.1",
+    "xlsx": "^0.18.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -73,6 +77,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
+    "dotenv": "^16.1.4",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -82,6 +87,13 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "vitest": "^1.1.5"
+  },
+  "vitest": {
+    "include": [
+      "src/**/*.test.{js,ts,tsx}",
+      "src/**/__tests__/**/*.test.{js,ts,tsx}"
+    ]
   }
 }
