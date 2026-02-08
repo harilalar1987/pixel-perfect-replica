@@ -76,17 +76,33 @@ function guessAmount(row: Record<string, any>): { amount: number; direction: 'cr
 
 export async function parseBankFile(file: File): Promise<ParsedStatement> {
   const name = file.name.toLowerCase();
+  
+  // CSV files
   if (name.endsWith('.csv') || file.type === 'text/csv') {
     return parseCsv(await file.text());
   }
 
-  // try XLSX
+  // Excel files
   if (name.endsWith('.xls') || name.endsWith('.xlsx') || /spreadsheet/.test(file.type)) {
     return parseXlsx(await file.arrayBuffer());
   }
 
+  // PDF files - return indicator that AI parsing is needed
+  if (name.endsWith('.pdf') || file.type === 'application/pdf') {
+    return { 
+      transactions: [], 
+      meta: { requires_ai_parsing: true, file_type: 'pdf' } 
+    };
+  }
+
   // unknown format — return empty structure
   return { transactions: [], meta: { reason: 'unsupported_format' } };
+}
+
+// Check if a file needs AI-powered parsing (PDF)
+export function requiresAIParsing(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return name.endsWith('.pdf') || file.type === 'application/pdf';
 }
 
 export function parseCsv(contents: string): ParsedStatement {
