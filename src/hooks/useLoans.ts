@@ -285,7 +285,7 @@ export function useCreateDecisionRpc() {
 // - insert documents + bank_statements + bank_transactions
 // - enqueue ingestion_jobs via the existing RPC
 // -----------------------------
-import { parseBankFile, ParsedStatement } from '@/lib/bankParser';
+import { parseBankFile, ParsedStatement, requiresAIParsing } from '@/lib/bankParser';
 
 export function useBankStatements(loanId: string | undefined) {
   return useQuery({
@@ -321,16 +321,47 @@ export function useUploadAndParseBankStatement() {
         p_storage_path: path,
         p_file_type: file.type || 'application/octet-stream',
         p_file_size: file.size,
-        p_provider: 'client-sheetjs',
+        p_provider: requiresAIParsing(file) ? 'ai-gemini' : 'client-sheetjs',
       }).single();
 
       if (rpcErr) throw rpcErr;
       const documentId = rpcRes?.document_id as string | undefined;
 
-      // 3) attempt client-side parse (CSV/XLSX only)
+      // 3) Check if PDF - use AI parsing via edge function
+      if (requiresAIParsing(file)) {
+        // Call the AI-powered parsing edge function
+        const { data: aiResult, error: aiErr } = await supabase.functions.invoke('parse-bank-statement', {
+          body: {
+            storagePath: path,
+            documentId,
+            loanId,
+          },
+        });
+
+        if (aiErr) {
+          console.error('AI parsing error:', aiErr);
+          throw new Error(`AI parsing failed: ${aiErr.message}`);
+        }
+
+        if (!aiResult?.success) {
+          throw new Error(aiResult?.error || 'AI parsing failed');
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['bank-statements', loanId] });
+        queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+
+        return { 
+          documentId, 
+          bankStatementId: aiResult.bankStatementId,
+          transactionCount: aiResult.transactionCount,
+          aiParsed: true,
+        };
+      }
+
+      // 4) Client-side parse for CSV/XLSX
       const parsed: ParsedStatement = await parseBankFile(file);
 
-      // 4) persist parsed statement + transactions (best-effort)
+      // 5) persist parsed statement + transactions (best-effort)
       const { data: stmt, error: stmtErr } = await (supabase as any)
         .from('bank_statements')
         .insert({
@@ -368,7 +399,7 @@ export function useUploadAndParseBankStatement() {
         }
       }
 
-      // 5) mark ingestion_jobs done (best-effort update so UI shows parsed data immediately)
+      // 6) mark ingestion_jobs done (best-effort update so UI shows parsed data immediately)
       try {
         await (supabase as any).from('ingestion_jobs').update({ status: 'done', progress: 100, finished_at: new Date().toISOString(), meta: { client_parsed: true } }).eq('document_id', documentId);
       } catch (e) {
@@ -385,8 +416,14 @@ export function useUploadAndParseBankStatement() {
       console.error('uploadAndParseBankStatement error:', error);
       toast.error('Failed to ingest bank statement', { description: String(error) });
     },
-    onSuccess: (_data) => {
-      toast.success('Bank statement ingested');
+    onSuccess: (data: any) => {
+      if (data?.aiParsed) {
+        toast.success('Bank statement parsed with AI', { 
+          description: `Extracted ${data.transactionCount || 0} transactions` 
+        });
+      } else {
+        toast.success('Bank statement ingested');
+      }
     },
   });
 }
