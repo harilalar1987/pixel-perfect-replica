@@ -199,6 +199,7 @@ export default function LoanAnalysis() {
   // and an explicit query param are present (safe developer-only demo mode).
   // This prevents mock values (e.g. "Diamond Agencies") from appearing as real data in normal runs.
   const { data: dbLoan, isLoading: dbLoading } = useLoan(id);
+  const { data: dbBankStatements } = useBankStatements(id);
   const envEnableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
   const enableMocks = envEnableMocks && Boolean(location && new URLSearchParams(location.search).get('demo'));
 
@@ -611,7 +612,8 @@ export default function LoanAnalysis() {
             >
               {activeBankingSubTab === 'overview' && (
                 (() => {
-                  const { data: dbStmts } = useBankStatements(id);
+                  // Use bank statements data from top-level hook
+                  const dbStmts = dbBankStatements;
 
                   // If DB has parsed statements, prefer them over mocks
                   if (Array.isArray(dbStmts) && dbStmts.length > 0) {
