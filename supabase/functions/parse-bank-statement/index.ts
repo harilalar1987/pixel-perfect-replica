@@ -112,8 +112,18 @@ serve(async (req) => {
 
     // For digital PDFs, we'll extract text and send to AI for parsing
     // Use Lovable AI to extract transactions from the PDF content
-    const systemPrompt = `You are a bank statement parser. Extract transaction data from the provided bank statement content.
+    // Send more content for larger PDFs to ensure we capture all transactions
+    const maxContentLength = 200000; // Increase limit to handle larger PDFs
+    const contentToSend = base64Content.length > maxContentLength 
+      ? base64Content.substring(0, maxContentLength) 
+      : base64Content;
     
+    console.log("Sending content length to AI:", contentToSend.length);
+
+    const systemPrompt = `You are an expert bank statement parser. Your task is to extract ALL transaction data from Indian bank statements (Union Bank, SBI, HDFC, ICICI, etc.).
+
+CRITICAL: You MUST extract EVERY transaction from the statement. Do not skip any transactions.
+
 Return a JSON object with this exact structure:
 {
   "account_number": "string or null",
@@ -121,7 +131,7 @@ Return a JSON object with this exact structure:
   "statement_to": "YYYY-MM-DD or null",
   "opening_balance": number or null,
   "closing_balance": number or null,
-  "currency": "INR" or appropriate currency code,
+  "currency": "INR",
   "transactions": [
     {
       "occurred_at": "YYYY-MM-DD",
@@ -134,19 +144,28 @@ Return a JSON object with this exact structure:
 }
 
 Important rules:
+- Extract ALL transactions, even if there are hundreds
 - All amounts should be positive numbers
-- Use "credit" for money coming in, "debit" for money going out
-- Parse dates to YYYY-MM-DD format
-- Extract as many transactions as you can find
-- If you cannot determine a field, use null
-- Return ONLY the JSON object, no other text`;
+- Use "credit" for deposits, CR, money coming in
+- Use "debit" for withdrawals, DR, money going out
+- Parse Indian date formats (DD-MM-YYYY, DD/MM/YYYY) to YYYY-MM-DD
+- Look for transaction tables with columns like: Date, Narration/Description, Debit, Credit, Balance
+- Extract counterparty from UPI IDs, NEFT/IMPS references, or merchant names
+- Return ONLY valid JSON, no markdown code blocks or other text`;
 
-    const userPrompt = `Parse this bank statement PDF content (base64 encoded). Extract all transactions and account details.
+    const userPrompt = `Parse this Indian bank statement PDF (base64 encoded). Extract EVERY transaction from all pages.
 
-PDF Base64 Content (first 50000 chars):
-${base64Content.substring(0, 50000)}
+The PDF contains a bank statement. Look for:
+1. Account details at the top (account number, statement period)
+2. Opening and closing balances
+3. Transaction table with Date, Description/Narration, Debit, Credit, Balance columns
 
-Please extract all transaction data and return the structured JSON.`;
+Extract ALL transactions without exception.
+
+PDF Base64 Content:
+${contentToSend}
+
+Return the complete JSON with all transactions.`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -196,8 +215,11 @@ Please extract all transaction data and return the structured JSON.`;
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
       const jsonStr = jsonMatch[1] || content;
       parsed = JSON.parse(jsonStr.trim());
+      console.log("AI extracted transactions count:", parsed.transactions?.length || 0);
+      console.log("AI extracted account number:", parsed.account_number);
+      console.log("AI extracted period:", parsed.statement_from, "to", parsed.statement_to);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
+      console.error("Failed to parse AI response:", content.substring(0, 500));
       throw new Error("Failed to parse AI response as JSON");
     }
 
