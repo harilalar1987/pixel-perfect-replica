@@ -63,19 +63,22 @@ serve(async (req) => {
     if (downloadError || !fileData) {
       console.error("Failed to download file:", downloadError);
       return new Response(
-        JSON.stringify({ error: "Failed to download file from storage" }),
+        JSON.stringify({ error: `Failed to download file from storage: ${downloadError?.message || 'Unknown error'}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Convert file to base64 for text extraction
+    console.log("File downloaded successfully, size:", fileData.size);
+
+    // Convert file to base64 using standard encoding
     const arrayBuffer = await fileData.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const base64Content = btoa(binary);
+    
+    // Use Deno's standard base64 encoding
+    const { encode } = await import("https://deno.land/std@0.168.0/encoding/base64.ts");
+    const base64Content = encode(bytes);
+    
+    console.log("Base64 content length:", base64Content.length);
 
     // For digital PDFs, we'll extract text and send to AI for parsing
     // Use Lovable AI to extract transactions from the PDF content
