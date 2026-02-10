@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useLoan } from '@/hooks/useLoans';
+import { useLoan, useBankStatements } from '@/hooks/useLoans';
+import { useBankingAnalytics } from '@/hooks/useBankingAnalytics';
+import { useBureauAnalytics } from '@/hooks/useBureauAnalytics';
+import { useGSTAnalytics } from '@/hooks/useGSTAnalytics';
+import { useFraudAnalytics } from '@/hooks/useFraudAnalytics';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,7 +24,6 @@ import { GSTRevenueITC } from '@/components/gst/GSTRevenueITC';
 import { GSTFilingDelays } from '@/components/gst/GSTFilingDelays';
 import { GSTParties } from '@/components/gst/GSTParties';
 import { BankingAccountOverview } from '@/components/banking/BankingAccountOverview';
-import { useBankStatements } from '@/hooks/useLoans';
 import { BankingCashFlow } from '@/components/banking/BankingCashFlow';
 import { BankingBalances } from '@/components/banking/BankingBalances';
 import { BankingBounceAnalysis } from '@/components/banking/BankingBounceAnalysis';
@@ -33,65 +36,7 @@ import { DiscussionSummaryCard } from '@/components/personal/DiscussionSummaryCa
 import { RiskScoringCard } from '@/components/cam/RiskScoringCard';
 import { ProposedTermsCard } from '@/components/cam/ProposedTermsCard';
 import { FinalRecommendationCard } from '@/components/cam/FinalRecommendationCard';
-import {
-  mockLoans,
-  bureauCompanyPolicies,
-  bureauOtherPolicies,
-  bankingCompanyPolicies,
-  bankingOtherPolicies,
-  gstCompanyPolicies,
-  gstOtherPolicies,
-  crossDocPolicies,
-  mockRiskAssessment,
-} from '@/lib/mockData';
-import {
-  mockGSTEntityDetails,
-  mockGSTAISummary,
-  mockRevenueComparison,
-  mockITCComparison,
-  mockAnnualGrossAnalysis,
-  mockAnnualNetAnalysis,
-  mockFilingDelays,
-  mockTopSuppliers,
-  mockTopCustomers,
-  mockCommonParties,
-} from '@/lib/gstMockData';
-import {
-  mockBankAccounts,
-  mockTransactionSummary,
-  mockBankingConductAnalysis,
-  mockCashFlowPatterns,
-  mockBalanceBehavior,
-  mockBankingRedFlags,
-  mockAIBankingAssessment,
-  mockOutwardChequeBounce,
-  mockInwardChequeBounce,
-  mockBankingEMIBounce,
-  mockCashVsNonCash,
-  mockMonthlyBalances,
-} from '@/lib/bankingMockData';
-import {
-  mockLumpsumPatternAnalysis,
-  mockRecurringPatternAnalysis,
-  mockRoundTrippingAnalysis,
-} from '@/lib/fraudMockData';
-import { mockPersonalDiscussionData } from '@/lib/personalDiscussionMockData';
-import { mockCAMData } from '@/lib/camMockData';
-import {
-  mockCommercialBureauSummary,
-  mockIndividualBureauSummary,
-  mockAIBureauInsights,
-  mockCommercialLoans,
-  mockIndividualLoans,
-  mockCommercialLoanSummary,
-  mockIndividualLoanSummary,
-  mockBureauEnquiries,
-  mockEnquiryMetrics,
-  mockBureauRelationships,
-  mockPaymentDelays,
-  mockBureauBounceAnalysis,
-  mockEMIBounceAnalysis,
-} from '@/lib/bureauMockData';
+import { EmptyAnalysisState } from '@/components/EmptyAnalysisState';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -185,7 +130,6 @@ const camSubTabs = [
 export default function LoanAnalysis() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = typeof window !== 'undefined' ? new URL(window.location.href) : null;
   const [activeMainTab, setActiveMainTab] = useState('pre-approval');
   const [activeSubTab, setActiveSubTab] = useState('bureau-analysis');
   const [activeBureauSubTab, setActiveBureauSubTab] = useState('summary');
@@ -195,13 +139,15 @@ export default function LoanAnalysis() {
   const [activePersonalSubTab, setActivePersonalSubTab] = useState('applicant');
   const [activeCAMSubTab, setActiveCAMSubTab] = useState('risk-scoring');
 
-  // Prefer DB-backed loan (useLoan). Only fall back to mock data when BOTH the dev env flag
-  // and an explicit query param are present (safe developer-only demo mode).
-  // This prevents mock values (e.g. "Diamond Agencies") from appearing as real data in normal runs.
+  // DB hooks
   const { data: dbLoan, isLoading: dbLoading } = useLoan(id);
   const { data: dbBankStatements } = useBankStatements(id);
-  const envEnableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
-  const enableMocks = envEnableMocks && Boolean(location && new URLSearchParams(location.search).get('demo'));
+  
+  // Analytics hooks - compute from real data
+  const bankingAnalytics = useBankingAnalytics(dbBankStatements as any);
+  const { data: bureauData } = useBureauAnalytics(id);
+  const { data: gstData } = useGSTAnalytics(id);
+  const fraudData = useFraudAnalytics(dbBankStatements as any);
 
   const normalizeDbLoan = (l: any) => {
     if (!l) return null;
@@ -218,10 +164,7 @@ export default function LoanAnalysis() {
     };
   };
 
-  // Resolve priority: DB row -> mock (only if enabled) -> null
-  const loanFromDb = normalizeDbLoan(dbLoan);
-  const loanFromMock = enableMocks ? mockLoans.find((l) => l.id === id) || mockLoans[0] : null;
-  const loan = loanFromDb ?? loanFromMock ?? null;
+  const loan = normalizeDbLoan(dbLoan);
 
   const formatAmount = (amount: number) => {
     if (amount >= 10000000) {
@@ -232,7 +175,6 @@ export default function LoanAnalysis() {
     return `₹${amount.toLocaleString('en-IN')}`;
   };
 
-  // Loading / empty-state guards
   if (dbLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -253,7 +195,9 @@ export default function LoanAnalysis() {
         <main className="container py-6">
           <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
             <h2 className="text-lg font-semibold">No loan found</h2>
-            <p className="mt-2 text-sm text-muted-foreground">There is no loan with that id in the database. To view demo data only (developer mode), set <code>VITE_ENABLE_MOCKS=true</code> in your <code>.env</code> and open this page with <code>?demo=true</code> in the URL.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              There is no loan with that id in the database.
+            </p>
             <div className="mt-4 flex gap-2">
               <Button onClick={() => window.history.back()}>Back</Button>
               <Button onClick={() => navigate('/new-application')} variant="secondary">Create new application</Button>
@@ -269,7 +213,6 @@ export default function LoanAnalysis() {
       <Header />
 
       <main className="container py-6">
-        {/* Back Button */}
         <Button
           variant="ghost"
           onClick={() => navigate('/dashboard')}
@@ -279,22 +222,8 @@ export default function LoanAnalysis() {
           Back to Dashboard
         </Button>
 
-        {/* Visible demo indicator when mock data is being used intentionally */}
-        {loanFromMock && !loanFromDb && (
-          <div className="mb-4 -ml-2">
-            <div className="inline-flex items-center gap-3 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-amber-800 text-sm font-semibold">
-              <svg width="12" height="12" viewBox="0 0 24 24" className="inline-block"><circle cx="12" cy="12" r="12" fill="#92400E"/></svg>
-              DEMO DATA — not persisted (use <code className="font-mono">?demo=true</code> to enable)
-            </div>
-          </div>
-        )}
-
         {/* Loan Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <Card className="border-border bg-card shadow-card overflow-hidden">
             <div className="gradient-primary p-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -307,7 +236,6 @@ export default function LoanAnalysis() {
                       {loan.status}
                     </StatusBadge>
                   </div>
-                  <p className="sr-only">{loan.id}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-6 text-primary-foreground">
                   <div className="flex items-center gap-2">
@@ -347,20 +275,20 @@ export default function LoanAnalysis() {
                         loanId: loan.id,
                         customerName: loan.customerName,
                         loanAmount: loan.loanAmount,
-                        camData: mockCAMData,
-                        personalData: mockPersonalDiscussionData,
-                        commercialBureauSummary: mockCommercialBureauSummary,
-                        individualBureauSummary: mockIndividualBureauSummary,
-                        commercialLoans: mockCommercialLoans,
-                        individualLoans: mockIndividualLoans,
-                        commercialLoanSummary: mockCommercialLoanSummary,
-                        individualLoanSummary: mockIndividualLoanSummary,
-                        gstEntityDetails: mockGSTEntityDetails,
-                        bankAccounts: mockBankAccounts,
-                        transactionSummary: mockTransactionSummary,
-                        lumpsumPatterns: mockLumpsumPatternAnalysis,
-                        recurringPatterns: mockRecurringPatternAnalysis,
-                        roundTripping: mockRoundTrippingAnalysis,
+                        camData: null as any,
+                        personalData: null as any,
+                        commercialBureauSummary: bureauData?.commercialSummary || null as any,
+                        individualBureauSummary: bureauData?.individualSummary || null as any,
+                        commercialLoans: bureauData?.commercialLoans || [],
+                        individualLoans: bureauData?.individualLoans || [],
+                        commercialLoanSummary: bureauData?.commercialLoanSummary || null as any,
+                        individualLoanSummary: bureauData?.individualLoanSummary || null as any,
+                        gstEntityDetails: gstData?.entityDetails || null as any,
+                        bankAccounts: bankingAnalytics?.accounts || [],
+                        transactionSummary: bankingAnalytics?.transactionSummary || null as any,
+                        lumpsumPatterns: fraudData?.lumpsumAnalysis || null as any,
+                        recurringPatterns: fraudData?.recurringAnalysis || null as any,
+                        roundTripping: fraudData?.roundTrippingAnalysis || null as any,
                       });
                     }}
                   >
@@ -390,7 +318,6 @@ export default function LoanAnalysis() {
 
           {/* Pre-Approval Content */}
           <TabsContent value="pre-approval" className="space-y-6">
-            {/* Sub Tabs */}
             <Card className="border-border bg-card shadow-card">
               <CardContent className="p-2">
                 <div className="flex flex-wrap gap-2">
@@ -410,47 +337,39 @@ export default function LoanAnalysis() {
               </CardContent>
             </Card>
 
-            {/* Sub Tab Content */}
-            <motion.div
-              key={activeSubTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
+            <motion.div key={activeSubTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
               {activeSubTab === 'bureau-analysis' && (
-                <div className="space-y-8">
-                  <PolicySection title="Company Policies" policies={bureauCompanyPolicies} />
-                  <PolicySection title="Other Policies" policies={bureauOtherPolicies} />
-                </div>
+                bureauData ? (
+                  <EmptyAnalysisState module="Pre-Approval Bureau" description="Upload bureau reports to generate pre-approval policy checks." />
+                ) : (
+                  <EmptyAnalysisState module="Pre-Approval Bureau" description="Upload bureau reports to generate pre-approval policy checks." />
+                )
               )}
 
               {activeSubTab === 'banking-analysis' && (
-                <div className="space-y-8">
-                  <PolicySection title="Company Policies" policies={bankingCompanyPolicies} />
-                  <PolicySection title="Other Policies" policies={bankingOtherPolicies} />
-                </div>
+                bankingAnalytics ? (
+                  <EmptyAnalysisState module="Pre-Approval Banking" description="Banking policy checks will be computed from uploaded bank statements. Upload bank statements in the Banking tab." />
+                ) : (
+                  <EmptyAnalysisState module="Pre-Approval Banking" description="Upload bank statements to generate pre-approval policy checks." />
+                )
               )}
 
               {activeSubTab === 'gst-analysis' && (
-                <div className="space-y-8">
-                  <PolicySection title="Company Policies" policies={gstCompanyPolicies} />
-                  <PolicySection title="Other Policies" policies={gstOtherPolicies} />
-                </div>
+                <EmptyAnalysisState module="Pre-Approval GST" description="Upload GST returns to generate pre-approval policy checks." />
               )}
 
               {activeSubTab === 'cross-doc' && (
-                <PolicySection title="Cross Document Policies" policies={crossDocPolicies} />
+                <EmptyAnalysisState module="Cross Document Analysis" description="Upload documents across multiple categories (Bureau, Banking, GST) to enable cross-document policy checks." />
               )}
 
               {activeSubTab === 'ai-summary' && (
-                <RiskSummary assessment={mockRiskAssessment} />
+                <EmptyAnalysisState module="AI Risk Summary" description="Once all documents are uploaded, the AI will generate a comprehensive risk summary." />
               )}
             </motion.div>
           </TabsContent>
 
           {/* Bureau Tab Content */}
           <TabsContent value="bureau" className="space-y-6">
-            {/* Bureau Sub Tabs */}
             <Card className="border-border bg-card shadow-card">
               <CardContent className="p-2">
                 <div className="flex flex-wrap gap-2">
@@ -470,61 +389,64 @@ export default function LoanAnalysis() {
               </CardContent>
             </Card>
 
-            {/* Bureau Sub Tab Content */}
-            <motion.div
-              key={activeBureauSubTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeBureauSubTab === 'summary' && (
-                <BureauSummary
-                  commercial={mockCommercialBureauSummary}
-                  individual={mockIndividualBureauSummary}
-                  aiInsights={mockAIBureauInsights}
-                />
-              )}
+            <motion.div key={activeBureauSubTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+              {!bureauData ? (
+                <EmptyAnalysisState module="Bureau" description="Upload a CIBIL/Experian/CRIF bureau report (PDF) to see the full bureau analysis." />
+              ) : (
+                <>
+                  {activeBureauSubTab === 'summary' && bureauData.commercialSummary && bureauData.individualSummary && bureauData.aiInsights && (
+                    <BureauSummary
+                      commercial={bureauData.commercialSummary}
+                      individual={bureauData.individualSummary}
+                      aiInsights={bureauData.aiInsights}
+                    />
+                  )}
+                  {activeBureauSubTab === 'summary' && (!bureauData.commercialSummary || !bureauData.individualSummary || !bureauData.aiInsights) && (
+                    <EmptyAnalysisState module="Bureau Summary" description="The uploaded bureau report did not contain enough data for summary analysis." />
+                  )}
 
-              {activeBureauSubTab === 'loans' && (
-                <BureauLoans
-                  commercialLoans={mockCommercialLoans}
-                  individualLoans={mockIndividualLoans}
-                  commercialSummary={mockCommercialLoanSummary}
-                  individualSummary={mockIndividualLoanSummary}
-                />
-              )}
+                  {activeBureauSubTab === 'loans' && (
+                    <BureauLoans
+                      commercialLoans={bureauData.commercialLoans}
+                      individualLoans={bureauData.individualLoans}
+                      commercialSummary={bureauData.commercialLoanSummary || { totalAccounts: 0, activeAccounts: 0, closedAccounts: 0, totalSanctionedAmount: 0, totalOutstandingAmount: 0 }}
+                      individualSummary={bureauData.individualLoanSummary || { totalAccounts: 0, activeAccounts: 0, closedAccounts: 0, totalSanctionedAmount: 0, totalOutstandingAmount: 0 }}
+                    />
+                  )}
 
-              {activeBureauSubTab === 'enquiries' && (
-                <BureauEnquiries
-                  enquiries={mockBureauEnquiries}
-                  metrics={mockEnquiryMetrics}
-                />
-              )}
+                  {activeBureauSubTab === 'enquiries' && (
+                    <BureauEnquiries
+                      enquiries={bureauData.enquiries}
+                      metrics={bureauData.enquiryMetrics || { totalEnquiries: 0, last30Days: 0, last90Days: 0, last180Days: 0, last12Months: 0 }}
+                    />
+                  )}
 
-              {activeBureauSubTab === 'relationships' && (
-                <BureauRelationships relationships={mockBureauRelationships} />
-              )}
+                  {activeBureauSubTab === 'relationships' && (
+                    <BureauRelationships relationships={bureauData.relationships} />
+                  )}
 
-              {activeBureauSubTab === 'payment-delays' && (
-                <PaymentDelays delays={mockPaymentDelays} />
-              )}
+                  {activeBureauSubTab === 'payment-delays' && (
+                    <PaymentDelays delays={bureauData.paymentDelays} />
+                  )}
 
-              {activeBureauSubTab === 'bounce-analysis' && (
-                <BureauBounceAnalysis
-                  chequeBounce={mockBureauBounceAnalysis}
-                  emiBounce={mockEMIBounceAnalysis}
-                />
-              )}
+                  {activeBureauSubTab === 'bounce-analysis' && bureauData.bounceAnalysis && bureauData.emiBounceAnalysis && (
+                    <BureauBounceAnalysis
+                      chequeBounce={bureauData.bounceAnalysis}
+                      emiBounce={bureauData.emiBounceAnalysis}
+                    />
+                  )}
+                  {activeBureauSubTab === 'bounce-analysis' && (!bureauData.bounceAnalysis || !bureauData.emiBounceAnalysis) && (
+                    <EmptyAnalysisState module="Bureau Bounce Analysis" description="Bounce analysis data not available in the uploaded report." />
+                  )}
 
-              {activeBureauSubTab === 'cash-flow' && (
-                <BureauCashFlow />
+                  {activeBureauSubTab === 'cash-flow' && <BureauCashFlow />}
+                </>
               )}
             </motion.div>
           </TabsContent>
 
           {/* GST Tab Content */}
           <TabsContent value="gst" className="space-y-6">
-            {/* GST Sub Tabs */}
             <Card className="border-border bg-card shadow-card">
               <CardContent className="p-2">
                 <div className="flex flex-wrap gap-2">
@@ -544,46 +466,53 @@ export default function LoanAnalysis() {
               </CardContent>
             </Card>
 
-            {/* GST Sub Tab Content */}
-            <motion.div
-              key={activeGSTSubTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeGSTSubTab === 'overview' && (
-                <GSTEntityOverview
-                  entityDetails={mockGSTEntityDetails}
-                  aiSummary={mockGSTAISummary}
-                />
-              )}
+            <motion.div key={activeGSTSubTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+              {!gstData ? (
+                <EmptyAnalysisState module="GST" description="Upload GST returns (GSTR-1, GSTR-3B) as PDF or Excel to see the full GST analysis." />
+              ) : (
+                <>
+                  {activeGSTSubTab === 'overview' && gstData.aiSummary && (
+                    <GSTEntityOverview entityDetails={gstData.entityDetails} aiSummary={gstData.aiSummary} />
+                  )}
+                  {activeGSTSubTab === 'overview' && !gstData.aiSummary && (
+                    <EmptyAnalysisState module="GST Entity Overview" description="AI summary not available. Re-upload GST documents for full analysis." />
+                  )}
 
-              {activeGSTSubTab === 'revenue-itc' && (
-                <GSTRevenueITC
-                  revenueComparison={mockRevenueComparison}
-                  itcComparison={mockITCComparison}
-                  grossAnalysis={mockAnnualGrossAnalysis}
-                  netAnalysis={mockAnnualNetAnalysis}
-                />
-              )}
+                  {activeGSTSubTab === 'revenue-itc' && (
+                    <GSTRevenueITC
+                      revenueComparison={gstData.revenueComparison}
+                      itcComparison={gstData.itcComparison}
+                      grossAnalysis={gstData.grossAnalysis}
+                      netAnalysis={gstData.netAnalysis}
+                    />
+                  )}
 
-              {activeGSTSubTab === 'filing-delays' && (
-                <GSTFilingDelays filingDelays={mockFilingDelays} />
-              )}
+                  {activeGSTSubTab === 'filing-delays' && (
+                    gstData.filingDelays.length > 0 ? (
+                      <GSTFilingDelays filingDelays={gstData.filingDelays} />
+                    ) : (
+                      <EmptyAnalysisState module="GST Filing Delays" description="Filing delay data not available in the uploaded documents." />
+                    )
+                  )}
 
-              {activeGSTSubTab === 'parties' && (
-                <GSTParties
-                  topSuppliers={mockTopSuppliers}
-                  topCustomers={mockTopCustomers}
-                  commonParties={mockCommonParties}
-                />
+                  {activeGSTSubTab === 'parties' && (
+                    gstData.topSuppliers.length > 0 || gstData.topCustomers.length > 0 ? (
+                      <GSTParties
+                        topSuppliers={gstData.topSuppliers}
+                        topCustomers={gstData.topCustomers}
+                        commonParties={gstData.commonParties}
+                      />
+                    ) : (
+                      <EmptyAnalysisState module="GST Parties" description="Supplier/customer data not available in the uploaded documents." />
+                    )
+                  )}
+                </>
               )}
             </motion.div>
           </TabsContent>
 
           {/* Banking Tab Content */}
           <TabsContent value="banking" className="space-y-6">
-            {/* Banking Sub Tabs */}
             <Card className="border-border bg-card shadow-card">
               <CardContent className="p-2">
                 <div className="flex flex-wrap gap-2">
@@ -603,99 +532,49 @@ export default function LoanAnalysis() {
               </CardContent>
             </Card>
 
-            {/* Banking Sub Tab Content */}
-            <motion.div
-              key={activeBankingSubTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeBankingSubTab === 'overview' && (
-                (() => {
-                  // Use bank statements data from top-level hook
-                  const dbStmts = dbBankStatements;
-
-                  // If DB has parsed statements, prefer them over mocks
-                  if (Array.isArray(dbStmts) && dbStmts.length > 0) {
-                    const accounts = dbStmts.map((s: any) => ({
-                      id: s.id,
-                      maskedAccountNumber: s.account_mask || (s.account_number ? `XXXX${String(s.account_number).slice(-4)}` : '—'),
-                      bankName: (s.meta && s.meta.bank_name) || '—',
-                      accountType: 'Current Account' as const,
-                      branchName: s.meta?.branch || undefined,
-                      ifscCode: s.meta?.ifsc || undefined,
-                      accountName: s.account_number || '—',
-                      statementPeriod: s.statement_from && s.statement_to ? `${new Date(s.statement_from).toLocaleDateString()} - ${new Date(s.statement_to).toLocaleDateString()}` : '—',
-                    }));
-
-                    const allTx = (dbStmts || []).flatMap((s: any) => (s.bank_transactions || []));
-                    const totalCredits = allTx.filter((t: any) => t.direction === 'credit').reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
-                    const totalDebits = allTx.filter((t: any) => t.direction === 'debit').reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
-                    const months = dbStmts.reduce((acc: Set<string>, s: any) => {
-                      if (s.statement_from && s.statement_to) {
-                        acc.add(`${s.statement_from}_${s.statement_to}`);
-                      }
-                      return acc;
-                    }, new Set()).size || 6;
-
-                    const transactionSummary = {
-                      totalCredits,
-                      totalDebits,
-                      totalTransactions: allTx.length,
-                      analysisPeriods: months,
-                    };
-
-                    return (
-                      <BankingAccountOverview
-                        accounts={accounts}
-                        transactionSummary={transactionSummary}
-                        conductAnalysis={mockBankingConductAnalysis}
-                        redFlags={mockBankingRedFlags}
-                        aiAssessment={mockAIBankingAssessment}
-                      />
-                    );
-                  }
-
-                  // fallback to mocks
-                  return (
+            <motion.div key={activeBankingSubTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+              {!bankingAnalytics ? (
+                <EmptyAnalysisState module="Banking" description="Upload bank statements (PDF, CSV, or XLSX) to see the full banking analysis computed from your transactions." />
+              ) : (
+                <>
+                  {activeBankingSubTab === 'overview' && (
                     <BankingAccountOverview
-                      accounts={mockBankAccounts}
-                      transactionSummary={mockTransactionSummary}
-                      conductAnalysis={mockBankingConductAnalysis}
-                      redFlags={mockBankingRedFlags}
-                      aiAssessment={mockAIBankingAssessment}
+                      accounts={bankingAnalytics.accounts}
+                      transactionSummary={bankingAnalytics.transactionSummary}
+                      conductAnalysis={bankingAnalytics.conductAnalysis}
+                      redFlags={bankingAnalytics.redFlags}
+                      aiAssessment={bankingAnalytics.aiAssessment}
                     />
-                  );
-                })()
-              )}
+                  )}
 
-              {activeBankingSubTab === 'cash-flow' && (
-                <BankingCashFlow
-                  cashFlowPatterns={mockCashFlowPatterns}
-                  cashVsNonCash={mockCashVsNonCash}
-                />
-              )}
+                  {activeBankingSubTab === 'cash-flow' && (
+                    <BankingCashFlow
+                      cashFlowPatterns={bankingAnalytics.cashFlowPatterns}
+                      cashVsNonCash={bankingAnalytics.cashVsNonCash}
+                    />
+                  )}
 
-              {activeBankingSubTab === 'balances' && (
-                <BankingBalances
-                  monthlyBalances={mockMonthlyBalances}
-                  balanceBehavior={mockBalanceBehavior}
-                />
-              )}
+                  {activeBankingSubTab === 'balances' && (
+                    <BankingBalances
+                      monthlyBalances={bankingAnalytics.monthlyBalances}
+                      balanceBehavior={bankingAnalytics.balanceBehavior}
+                    />
+                  )}
 
-              {activeBankingSubTab === 'bounce' && (
-                <BankingBounceAnalysis
-                  outwardBounce={mockOutwardChequeBounce}
-                  inwardBounce={mockInwardChequeBounce}
-                  emiBounce={mockBankingEMIBounce}
-                />
+                  {activeBankingSubTab === 'bounce' && (
+                    <BankingBounceAnalysis
+                      outwardBounce={bankingAnalytics.outwardChequeBounce}
+                      inwardBounce={bankingAnalytics.inwardChequeBounce}
+                      emiBounce={bankingAnalytics.bankingEMIBounce}
+                    />
+                  )}
+                </>
               )}
             </motion.div>
           </TabsContent>
 
           {/* Fraud Assessment Tab Content */}
           <TabsContent value="fraud" className="space-y-6">
-            {/* Fraud Sub Tabs */}
             <Card className="border-border bg-card shadow-card">
               <CardContent className="p-2">
                 <div className="flex flex-wrap gap-2">
@@ -715,30 +594,27 @@ export default function LoanAnalysis() {
               </CardContent>
             </Card>
 
-            {/* Fraud Sub Tab Content */}
-            <motion.div
-              key={activeFraudSubTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeFraudSubTab === 'lumpsum' && (
-                <LumpsumPatterns data={mockLumpsumPatternAnalysis} />
-              )}
-
-              {activeFraudSubTab === 'recurring' && (
-                <RecurringPatterns data={mockRecurringPatternAnalysis} />
-              )}
-
-              {activeFraudSubTab === 'round-tripping' && (
-                <RoundTripping data={mockRoundTrippingAnalysis} />
+            <motion.div key={activeFraudSubTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+              {!fraudData ? (
+                <EmptyAnalysisState module="Fraud Assessment" description="Upload bank statements to enable fraud pattern detection. Lumpsum, recurring, and round-tripping patterns are computed from transaction data." />
+              ) : (
+                <>
+                  {activeFraudSubTab === 'lumpsum' && (
+                    <LumpsumPatterns data={fraudData.lumpsumAnalysis} />
+                  )}
+                  {activeFraudSubTab === 'recurring' && (
+                    <RecurringPatterns data={fraudData.recurringAnalysis} />
+                  )}
+                  {activeFraudSubTab === 'round-tripping' && (
+                    <RoundTripping data={fraudData.roundTrippingAnalysis} />
+                  )}
+                </>
               )}
             </motion.div>
           </TabsContent>
 
           {/* Personal Discussion Tab Content */}
           <TabsContent value="personal" className="space-y-6">
-            {/* Personal Sub Tabs */}
             <Card className="border-border bg-card shadow-card">
               <CardContent className="p-2">
                 <div className="flex flex-wrap gap-2">
@@ -758,37 +634,13 @@ export default function LoanAnalysis() {
               </CardContent>
             </Card>
 
-            {/* Personal Sub Tab Content */}
-            <motion.div
-              key={activePersonalSubTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activePersonalSubTab === 'applicant' && (
-                <ApplicantDetailsCard
-                  applicant={mockPersonalDiscussionData.applicantDetails}
-                  business={mockPersonalDiscussionData.businessDetails}
-                />
-              )}
-
-              {activePersonalSubTab === 'interview' && (
-                <InterviewNotes
-                  notes={mockPersonalDiscussionData.interviewNotes}
-                  financials={mockPersonalDiscussionData.financialDiscussion}
-                  character={mockPersonalDiscussionData.characterAssessment}
-                />
-              )}
-
-              {activePersonalSubTab === 'summary' && (
-                <DiscussionSummaryCard summary={mockPersonalDiscussionData.summary} />
-              )}
+            <motion.div key={activePersonalSubTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+              <EmptyAnalysisState module="Personal Discussion" description="Personal discussion data will be available once the interview is conducted and notes are uploaded or entered." />
             </motion.div>
           </TabsContent>
 
           {/* CAM Tab Content */}
           <TabsContent value="cam" className="space-y-6">
-            {/* CAM Sub Tabs */}
             <Card className="border-border bg-card shadow-card">
               <CardContent className="p-2">
                 <div className="flex flex-wrap gap-2">
@@ -808,27 +660,11 @@ export default function LoanAnalysis() {
               </CardContent>
             </Card>
 
-            {/* CAM Sub Tab Content */}
-            <motion.div
-              key={activeCAMSubTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeCAMSubTab === 'risk-scoring' && (
-                <RiskScoringCard riskScoring={mockCAMData.riskScoring} />
-              )}
-
-              {activeCAMSubTab === 'loan-terms' && (
-                <ProposedTermsCard
-                  terms={mockCAMData.proposedTerms}
-                  financialHighlights={mockCAMData.financialHighlights}
-                />
-              )}
-
-
-              {activeCAMSubTab === 'recommendation' && (
-                <FinalRecommendationCard recommendation={mockCAMData.recommendation} loanId={id} />
+            <motion.div key={activeCAMSubTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+              {activeCAMSubTab === 'recommendation' ? (
+                <FinalRecommendationCard recommendation={null as any} loanId={id} />
+              ) : (
+                <EmptyAnalysisState module="Credit Assessment Memo" description="The CAM will be auto-generated once all supporting documents (Bureau, Banking, GST) are uploaded and analyzed." />
               )}
             </motion.div>
           </TabsContent>
