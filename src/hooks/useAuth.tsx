@@ -109,14 +109,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { full_name: fullName }
         }
-      });
-      return { error };
+      }) as any;
+
+      if (error) return { error };
+
+      const signedUpUser = (data as any)?.user;
+
+      if (signedUpUser && signedUpUser.id) {
+        // Create a profile row with approved=false by default
+        try {
+          const { error: insertErr } = await supabase
+            .from('profiles')
+            .insert({ user_id: signedUpUser.id, full_name: fullName, created_at: new Date().toISOString(), approved: false } as any);
+
+          if (insertErr) {
+            console.warn('Failed to create profile row:', insertErr);
+          }
+        } catch (e) {
+          console.warn('Profile creation exception:', e);
+        }
+      }
+
+      return { error: null };
     } catch (error) {
       return { error: error as Error };
     }
@@ -124,11 +144,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      return { error };
+
+      if (error) {
+        return { error };
+      }
+
+      const signedInUser = (data as any)?.user;
+
+      if (signedInUser && signedInUser.id) {
+        // Fetch profile and check approval flag. Use `any` casts because the generated types
+        // may not include the `approved` column until DB is migrated.
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', signedInUser.id)
+            .maybeSingle() as any;
+
+          if (profileError) {
+            // Can't verify approval; return sign-in success but warn caller via error
+            return { error: profileError };
+          }
+
+          const approved = (profileData as any)?.approved;
+
+          if (approved === false || approved === 0) {
+            // Immediately sign out the newly authenticated user and return an error
+            await supabase.auth.signOut();
+            return { error: new Error('Account not approved by admin') };
+          }
+        } catch (inner) {
+          // If profile check fails, sign out and return an error to be safe
+          await supabase.auth.signOut();
+          return { error: inner as Error };
+        }
+      }
+
+      return { error: null };
     } catch (error) {
       return { error: error as Error };
     }

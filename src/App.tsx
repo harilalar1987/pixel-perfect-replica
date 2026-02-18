@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import NewApplication from "./pages/NewApplication";
 import LoanAnalysis from "./pages/LoanAnalysis";
 import NotFound from "./pages/NotFound";
+import SettingsPage from "./pages/SettingsPage";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const AppRoutes = () => (
     <Route path="/" element={<Navigate to="/dashboard" replace />} />
     <Route path="/login" element={<AuthRoute><AuthForm /></AuthRoute>} />
     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+    <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
     <Route path="/new-application" element={<ProtectedRoute><NewApplication /></ProtectedRoute>} />
     <Route path="/loan/:id" element={<ProtectedRoute><LoanAnalysis /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />

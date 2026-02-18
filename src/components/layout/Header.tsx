@@ -11,6 +11,7 @@ import {
 import { Plus, Coins, User, Settings, LogOut, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface HeaderProps {
   onNewApplication?: () => void;
@@ -18,7 +19,7 @@ interface HeaderProps {
 
 export function Header({ onNewApplication }: HeaderProps) {
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, user } = useAuth();
   const creditsUsed = 12;
   const totalCredits = 50;
 
@@ -99,14 +100,26 @@ export function Header({ onNewApplication }: HeaderProps) {
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-card border-border">
+              <DropdownMenuContent align="end" className="w-56 bg-card border-border">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <User className="mr-2 h-4 w-4" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const admins = ['yashdjain1824@gmail.com', 'harilalar1987@gmail.com'];
+                  const email = (user?.email || '').toLowerCase();
+                  if (admins.includes(email)) {
+                    // Navigate to settings
+                    // Using window.location to avoid circular hook issues inside dropdown item
+                    window.location.href = '/settings';
+                  } else {
+                    toast.error('This is available only for admin');
+                  }
+                }}
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>

@@ -9,7 +9,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { FolderOpen, Users, TrendingUp, Clock, Loader2 } from 'lucide-react';
 import { LoanApplication, LoanType, LoanStatus } from '@/types/loan';
-import DbConnectionCheck from "@/components/DbConnectionCheck";
 
 // Map database loan to UI LoanApplication format
 const mapLoanToApplication = (loan: Loan): LoanApplication => {
@@ -138,8 +137,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {/* Existing header controls */}
-          <DbConnectionCheck />
+          {/* DB controls moved to Settings -> DB Settings */}
         </div>
       </header>
 
