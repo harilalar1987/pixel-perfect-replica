@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function DbConnectionCheck() {
+  const { user } = useAuth();
   const [status, setStatus] = useState('idle');
   const [details, setDetails] = useState(null);
   const [cleanupStatus, setCleanupStatus] = useState('idle');
@@ -234,6 +236,7 @@ export default function DbConnectionCheck() {
         >
           {status === 'checking' ? 'Checking...' : 'Check DB Connection'}
         </button>
+        {user && ['yashdjain1824@gmail.com', 'harilalar1987@gmail.com'].includes((user.email || '').toLowerCase()) && (
         <button 
           onClick={clearOldData} 
           style={{ 
@@ -251,6 +254,8 @@ export default function DbConnectionCheck() {
         >
           {cleanupStatus === 'processing' ? 'Clearing...' : 'Clear Old Data (7+ day)'}
         </button>
+        )}
+        {user && ['yashdjain1824@gmail.com', 'harilalar1987@gmail.com'].includes((user.email || '').toLowerCase()) && (
         <button 
           onClick={clearAllData} 
           style={{ 
@@ -269,6 +274,7 @@ export default function DbConnectionCheck() {
         >
           {clearAllStatus === 'processing' ? 'Clearing All...' : '⚠️ Clear All Data'}
         </button>
+        )}
       </div>
       
       {/* DB Connection Status */}
