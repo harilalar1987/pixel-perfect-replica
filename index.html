@@ -23,6 +23,17 @@
   <meta name="twitter:title" content="Clyrovia | Smart Credit Analysis" />
   <meta name="twitter:description" content="Advanced Smart Credit Analysis platform by Clyrovia." />
   <meta name="twitter:image" content="https://creditanalysis.clyrovia.com/preview.png" />
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const redirectPath = params.get("p");
+      if (!redirectPath) return;
+
+      const restoredPath = decodeURIComponent(redirectPath);
+      window.history.replaceState(null, "", restoredPath);
+    })();
+  </script>
 </head>
 
 
