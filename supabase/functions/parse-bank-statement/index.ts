@@ -64,9 +64,14 @@ serve(async (req) => {
 
     console.log("Authenticated user:", claimsData.claims.sub);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const aiGatewayApiKey = Deno.env.get("AI_GATEWAY_API_KEY");
+    if (!aiGatewayApiKey) {
+      throw new Error("AI_GATEWAY_API_KEY is not configured");
+    }
+
+    const aiGatewayUrl = Deno.env.get("AI_GATEWAY_URL");
+    if (!aiGatewayUrl) {
+      throw new Error("AI_GATEWAY_URL is not configured");
     }
 
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -111,7 +116,6 @@ serve(async (req) => {
     console.log("Base64 content length:", base64Content.length);
 
     // For digital PDFs, we'll extract text and send to AI for parsing
-    // Use Lovable AI to extract transactions from the PDF content
     // Send more content for larger PDFs to ensure we capture all transactions
     const maxContentLength = 200000; // Increase limit to handle larger PDFs
     const contentToSend = base64Content.length > maxContentLength 
@@ -167,10 +171,10 @@ ${contentToSend}
 
 Return the complete JSON with all transactions.`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch(aiGatewayUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${aiGatewayApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

@@ -34,8 +34,11 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const aiGatewayApiKey = Deno.env.get("AI_GATEWAY_API_KEY");
+    if (!aiGatewayApiKey) throw new Error("AI_GATEWAY_API_KEY not configured");
+
+    const aiGatewayUrl = Deno.env.get("AI_GATEWAY_URL");
+    if (!aiGatewayUrl) throw new Error("AI_GATEWAY_URL not configured");
 
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -117,10 +120,10 @@ Return ONLY valid JSON.`;
 
     const userPrompt = `Parse this ${documentType} document (base64 PDF). Extract ALL data.\n\nPDF Base64 Content:\n${contentToSend}\n\nReturn complete JSON.`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch(aiGatewayUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${aiGatewayApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
