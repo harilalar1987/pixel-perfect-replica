@@ -20,8 +20,28 @@ interface HeaderProps {
 export function Header({ onNewApplication }: HeaderProps) {
   const navigate = useNavigate();
   const { profile, signOut, user } = useAuth();
-  const creditsUsed = 12;
   const totalCredits = 50;
+  const [creditsUsed, setCreditsUsed] = React.useState(0);
+
+  React.useEffect(() => {
+    async function fetchCredits() {
+      if (!user) {
+        setCreditsUsed(0);
+        return;
+      }
+      // Count loan applications for the current user
+      const { data, error } = await supabase
+        .from('loans')
+        .select('id', { count: 'exact' })
+        .eq('assigned_analyst_id', user.id);
+      if (error) {
+        setCreditsUsed(0);
+        return;
+      }
+      setCreditsUsed(data?.length || 0);
+    }
+    fetchCredits();
+  }, [user]);
 
   const getInitials = (name: string) => {
     return name
@@ -51,7 +71,7 @@ export function Header({ onNewApplication }: HeaderProps) {
             </div>
             <div>
               <h1 className="font-display text-lg font-semibold text-foreground">
-                Supermoney Credit Intelligence
+                Credit Intelligence
               </h1>
               <p className="text-xs text-muted-foreground">Enterprise Workspace</p>
             </div>

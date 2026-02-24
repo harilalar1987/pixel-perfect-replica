@@ -41,7 +41,7 @@ export default function LoginPage() {
     
     toast({
       title: 'Login Successful',
-      description: 'Welcome to Supermoney Credit Intelligence',
+      description: 'Welcome to Credit Intelligence',
     });
     navigate('/dashboard');
   };
